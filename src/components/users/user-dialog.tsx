@@ -2,6 +2,7 @@
 
 "use client";
 
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -47,7 +48,6 @@ interface UserDialogProps {
 }
 
 function getCsrfToken(): string {
-  // Get CSRF token from cookie
   const cookies = document.cookie.split(";");
   const csrfCookie = cookies.find((cookie) =>
     cookie.trim().startsWith("csrf-token=")
@@ -64,17 +64,46 @@ export function UserDialog({
   const form = useForm<FormData>({
     resolver: zodResolver(userSchema),
     defaultValues: {
-      username: user?.username || "",
-      email: user?.email || "",
-      fullName: user?.fullName || "",
-      gender: user?.gender || "MALE",
-      phone: user?.phone || "",
-      address: user?.address || "",
-      activeStatus: user?.activeStatus ?? true,
-      dateOfBirth: user?.dateOfBirth || undefined,
-      ...(user ? {} : { password: "" }),
+      username: "",
+      email: "",
+      fullName: "",
+      gender: "MALE",
+      phone: "",
+      address: "",
+      activeStatus: true,
+      dateOfBirth: undefined,
     },
   });
+
+  // Reset form when dialog opens/closes or user changes
+  useEffect(() => {
+    if (open && user) {
+      // If editing existing user
+      form.reset({
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        gender: user.gender,
+        phone: user.phone || "",
+        address: user.address || "",
+        activeStatus: user.activeStatus,
+        dateOfBirth: user.dateOfBirth || undefined,
+      });
+    } else if (!open) {
+      // Reset form when dialog closes
+      form.reset({
+        username: "",
+        email: "",
+        fullName: "",
+        gender: "MALE",
+        phone: "",
+        address: "",
+        activeStatus: true,
+        dateOfBirth: undefined,
+        password: "", // Only include password field for new users
+      });
+    }
+  }, [open, user, form]);
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -83,11 +112,14 @@ export function UserDialog({
         : "/api/v1/admin/users";
       const method = user ? "PATCH" : "POST";
 
-      // Get CSRF token
       const csrfToken = getCsrfToken();
-
       if (!csrfToken) {
         throw new Error("CSRF token tidak ditemukan");
+      }
+
+      // Remove password field if editing user and password is empty
+      if (user && !data.password) {
+        delete data.password;
       }
 
       const response = await fetch(url, {
@@ -96,7 +128,7 @@ export function UserDialog({
           "Content-Type": "application/json",
           "X-CSRF-Token": csrfToken,
         },
-        credentials: "include", // Important: include cookies in request
+        credentials: "include",
         body: JSON.stringify(data),
       });
 
@@ -148,6 +180,7 @@ export function UserDialog({
                           {...field}
                           className="w-full"
                           placeholder="Masukkan username"
+                          disabled={!!user} // Disable username edit for existing users
                         />
                       </FormControl>
                       <FormMessage />
@@ -167,6 +200,7 @@ export function UserDialog({
                           {...field}
                           className="w-full"
                           placeholder="contoh@email.com"
+                          disabled={!!user} // Disable email edit for existing users
                         />
                       </FormControl>
                       <FormMessage />

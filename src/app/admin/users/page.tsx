@@ -12,7 +12,7 @@ export const metadata = {
 
 export default function UsersPage() {
   return (
-    <div className="py-8 space-y-8">
+    <div className="py-8 space-y-8 mx-10">
       <PageHeader
         title="Manajemen User"
         description="Kelola data user dalam sistem"
