@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   LayoutDashboard,
   Users,
-  Settings,
   LogOut,
   Menu,
 } from "lucide-react";
@@ -42,13 +41,8 @@ const navItems: NavItem[] = [
   },
   {
     title: "Users",
-    href: "/admin/users",
+    href: "/admin/admin-account",
     icon: Users,
-  },
-  {
-    title: "Settings",
-    href: "/admin/settings",
-    icon: Settings,
   },
 ];
 
