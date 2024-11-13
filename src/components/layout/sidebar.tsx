@@ -40,8 +40,13 @@ const navItems: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
-    title: "Users",
+    title: "Admin",
     href: "/admin/admin-account",
+    icon: Users,
+  },
+  {
+    title: "Pengguna",
+    href: "/admin/users",
     icon: Users,
   },
 ];
