@@ -9,8 +9,8 @@ import { ApiError, ErrorCode } from "@/lib/errors";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("admin-token")?.value;
@@ -24,7 +24,8 @@ export async function GET(
       throw new ApiError(ErrorCode.FORBIDDEN, 'Forbidden', 403);
     }
 
-    const admin = await getAdminById(params.id);
+    const { id } = await context.params;
+    const admin = await getAdminById(id);
 
     return NextResponse.json({
       success: true,
@@ -55,8 +56,8 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("admin-token")?.value;
@@ -78,8 +79,10 @@ export async function PATCH(
       throw new ApiError(ErrorCode.FORBIDDEN, 'Invalid CSRF token', 403);
     }
 
+    const { id } = await context.params;
+    
     // Prevent updating super admin
-    if (params.id === process.env.SUPER_ADMIN_ID) {
+    if (id === process.env.SUPER_ADMIN_ID) {
       throw new ApiError(
         ErrorCode.FORBIDDEN,
         'Tidak dapat mengubah akun super admin',
@@ -88,7 +91,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const admin = await updateAdmin(params.id, body);
+    const admin = await updateAdmin(id, body);
 
     return NextResponse.json({
       success: true,
@@ -130,8 +133,8 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("admin-token")?.value;
@@ -153,8 +156,10 @@ export async function DELETE(
       throw new ApiError(ErrorCode.FORBIDDEN, 'Invalid CSRF token', 403);
     }
 
+    const { id } = await context.params;
+
     // Prevent deleting super admin
-    if (params.id === process.env.SUPER_ADMIN_ID) {
+    if (id === process.env.SUPER_ADMIN_ID) {
       throw new ApiError(
         ErrorCode.FORBIDDEN,
         'Tidak dapat menghapus akun super admin',
@@ -163,7 +168,7 @@ export async function DELETE(
     }
 
     // Prevent self-deletion
-    if (params.id === payload.sub) {
+    if (id === payload.sub) {
       throw new ApiError(
         ErrorCode.FORBIDDEN,
         'Tidak dapat menghapus akun sendiri',
@@ -171,7 +176,7 @@ export async function DELETE(
       );
     }
 
-    await deleteAdmin(params.id);
+    await deleteAdmin(id);
 
     return NextResponse.json({
       success: true,

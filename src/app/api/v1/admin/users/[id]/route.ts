@@ -15,8 +15,8 @@ const limiter = rateLimit({
 // GET /api/v1/admin/users/[id] - Get user detail
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } }
-) {
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
     await limiter.check(request, 60);
 
@@ -44,7 +44,8 @@ export async function GET(
       );
     }
 
-    const user = await getUserById(context.params.id);
+    const { id } = await context.params;
+    const user = await getUserById(id);
     
     return NextResponse.json({
       success: true,
@@ -77,8 +78,8 @@ export async function GET(
 // PATCH /api/v1/admin/users/[id] - Update user
 export async function PATCH(
   request: NextRequest,
-  context: { params: { id: string } }
-) {
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
     await limiter.check(request, 30);
 
@@ -106,12 +107,13 @@ export async function PATCH(
       );
     }
 
+    const { id } = await context.params;
     const body = await request.json();
     
     // Validasi input
     const validatedData = userUpdateSchema.parse(body);
     
-    const user = await updateUser(context.params.id, validatedData);
+    const user = await updateUser(id, validatedData);
     
     return NextResponse.json({
       success: true,
@@ -144,8 +146,8 @@ export async function PATCH(
 // DELETE /api/v1/admin/users/[id] - Delete user
 export async function DELETE(
   request: NextRequest,
-  context: { params: { id: string } }
-) {
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
     await limiter.check(request, 20);
 
@@ -173,7 +175,8 @@ export async function DELETE(
       );
     }
 
-    await deleteUser(context.params.id);
+    const { id } = await context.params;
+    await deleteUser(id);
     
     return NextResponse.json({
       success: true,
