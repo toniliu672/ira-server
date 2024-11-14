@@ -35,7 +35,6 @@ model Student {
   password       String
   fullName       String
   gender         Gender
-  dateOfBirth    DateTime?
   phone          String?
   address        String?
   activeStatus   Boolean        @default(true)

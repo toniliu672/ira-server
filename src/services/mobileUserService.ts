@@ -72,7 +72,6 @@ export const updateProfile = async (
       fullName: data.fullName,
       phone: data.phone,
       address: data.address,
-      dateOfBirth: data.dateOfBirth,
     };
 
     const user = await userRepository.update(id, allowedUpdates);

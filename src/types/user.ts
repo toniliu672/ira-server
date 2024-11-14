@@ -4,28 +4,13 @@ import { z } from "zod";
 
 export const userSchema = z.object({
   id: z.string().optional(),
-  username: z.string()
-    .min(3, "Username minimal 3 karakter")
-    .max(20, "Username maksimal 20 karakter")
-    .regex(/^[a-zA-Z0-9_]+$/, "Username hanya boleh berisi huruf, angka dan underscore"),
+  username: z.string().min(3, "Username minimal 3 karakter"),
   email: z.string().email("Format email tidak valid"),
-  password: z.string()
-    .min(8, "Password minimal 8 karakter")
-    .regex(/[A-Z]/, "Password harus mengandung huruf kapital")
-    .regex(/[a-z]/, "Password harus mengandung huruf kecil")
-    .regex(/[0-9]/, "Password harus mengandung angka")
-    .regex(/[^A-Za-z0-9]/, "Password harus mengandung karakter special")
-    .optional(),
-  fullName: z.string()
-    .min(2, "Nama lengkap minimal 2 karakter")
-    .max(100, "Nama lengkap maksimal 100 karakter"),
+  password: z.string().min(8, "Password minimal 8 karakter").optional(),
+  fullName: z.string().min(2, "Nama lengkap minimal 2 karakter"),
   gender: z.enum(["MALE", "FEMALE"]),
-  dateOfBirth: z.date().optional().nullable(),
-  phone: z.string()
-    .regex(/^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/, "Format nomor telepon tidak valid")
-    .optional()
-    .nullable(),
-  address: z.string().max(255, "Alamat maksimal 255 karakter").optional().nullable(),
+  phone: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
   activeStatus: z.boolean().default(true),
   deviceId: z.string().optional().nullable(),
   lastLogin: z.date().optional().nullable(),
@@ -71,8 +56,8 @@ export interface UserListResponse {
 }
 
 export interface UserDevice {
-    id: string;
-    deviceId: string;
-    lastLogin: Date;
-    deviceInfo?: string;
-  }
+  id: string;
+  deviceId: string;
+  lastLogin: Date;
+  deviceInfo?: string;
+}
