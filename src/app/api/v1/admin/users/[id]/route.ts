@@ -17,14 +17,12 @@ const limiter = rateLimit({
   uniqueTokenPerInterval: 500,
 });
 
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
-export async function GET(req: NextRequest, { params }: RouteParams) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
+    const { id } = await params;
     await limiter.check(req, 60);
 
     const cookieStore = await cookies();
@@ -39,7 +37,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    const user = await getUserById(params.id);
+    const user = await getUserById(id);
 
     return NextResponse.json({
       success: true,
@@ -69,8 +67,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: RouteParams) {
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
+    const { id } = await params;
     await limiter.check(req, 30);
 
     const cookieStore = await cookies();
@@ -88,7 +90,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const body = await req.json();
     const validatedData = userUpdateSchema.parse(body);
 
-    const user = await updateUser(params.id, validatedData);
+    const user = await updateUser(id, validatedData);
 
     return NextResponse.json({
       success: true,
@@ -118,8 +120,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: RouteParams) {
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
+    const { id } = await params;
     await limiter.check(req, 20);
 
     const cookieStore = await cookies();
@@ -134,7 +140,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    await deleteUser(params.id);
+    await deleteUser(id);
 
     return NextResponse.json({
       success: true,
