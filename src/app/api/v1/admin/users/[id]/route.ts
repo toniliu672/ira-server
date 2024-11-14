@@ -17,10 +17,13 @@ const limiter = rateLimit({
   uniqueTokenPerInterval: 500,
 });
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+interface RouteParams {
+  params: {
+    id: string;
+  };
+}
+
+export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     await limiter.check(req, 60);
 
@@ -66,10 +69,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     await limiter.check(req, 30);
 
@@ -118,10 +118,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
     await limiter.check(req, 20);
 
