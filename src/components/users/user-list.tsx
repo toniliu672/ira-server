@@ -4,10 +4,24 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Plus, Search, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
@@ -20,7 +34,7 @@ const ITEMS_PER_PAGE = 10;
 export function UserList() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   const [users, setUsers] = useState<UserResponse[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -38,7 +52,7 @@ export function UserList() {
       const params = new URLSearchParams({
         page: String(page),
         limit: String(ITEMS_PER_PAGE),
-        search
+        search,
       });
 
       // Update URL
@@ -56,7 +70,8 @@ export function UserList() {
         setTotal(data.data.total);
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Gagal memuat data user";
+      const errorMessage =
+        err instanceof Error ? err.message : "Gagal memuat data user";
       toast.error(errorMessage);
     } finally {
       setLoading(false);
@@ -69,8 +84,18 @@ export function UserList() {
 
   const handleDelete = async (id: string) => {
     try {
+      // Ambil CSRF token dari cookie
+      const csrfToken = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("csrf-token="))
+        ?.split("=")[1];
+
       const response = await fetch(`/api/v1/admin/users/${id}`, {
-        method: "DELETE"
+        method: "DELETE",
+        credentials: "include", // Penting untuk mengirim cookies
+        headers: {
+          "X-CSRF-Token": csrfToken || "", // Tambahkan CSRF token ke header
+        },
       });
 
       if (!response.ok) {
@@ -79,10 +104,12 @@ export function UserList() {
       }
 
       toast.success("User berhasil dihapus");
-      loadUsers();
+      loadUsers(); // Refresh data setelah delete berhasil
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Gagal menghapus user";
+      const errorMessage =
+        err instanceof Error ? err.message : "Gagal menghapus user";
       toast.error(errorMessage);
+      console.error("Delete error:", err);
     }
   };
 
@@ -114,11 +141,7 @@ export function UserList() {
             onChange={(e) => handleSearch(e.target.value)}
             className="w-64"
           />
-          <Button 
-            variant="outline" 
-            className="gap-2"
-            disabled={loading}
-          >
+          <Button variant="outline" className="gap-2" disabled={loading}>
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -127,11 +150,14 @@ export function UserList() {
             Cari
           </Button>
         </div>
-        
-        <Button onClick={() => {
-          setSelectedUser(null);
-          setOpenDialog(true);
-        }} className="gap-2">
+
+        <Button
+          onClick={() => {
+            setSelectedUser(null);
+            setOpenDialog(true);
+          }}
+          className="gap-2"
+        >
           <Plus className="w-4 h-4" />
           Tambah User
         </Button>
@@ -185,7 +211,7 @@ export function UserList() {
                         <DropdownMenuItem onClick={() => handleEdit(user)}>
                           Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           className="text-red-600"
                           onClick={() => {
                             if (user.id) handleDelete(user.id);
