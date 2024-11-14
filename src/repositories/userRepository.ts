@@ -96,6 +96,34 @@ export class UserRepository {
     }
   }
 
+  async findByUsername(username: string) {
+    try {
+      return await prisma.student.findUnique({
+        where: { username },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          password: true,
+          fullName: true,
+          gender: true,
+          dateOfBirth: true,
+          phone: true,
+          address: true,
+          activeStatus: true,
+          deviceId: true,
+          lastLogin: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    } catch (e) {
+      const error = e as Error;
+      console.error("Repository Find User By Username Error:", error.message);
+      throw new ApiError("FETCH_FAILED", "Gagal mengambil data user", 500);
+    }
+  }
+
   async create(data: Prisma.StudentCreateInput) {
     try {
       return await prisma.student.create({
@@ -202,5 +230,6 @@ export class UserRepository {
     }
   }
 }
+
 
 export const userRepository = new UserRepository();
