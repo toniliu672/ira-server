@@ -20,11 +20,11 @@ export const registerUser = async (
   deviceId: string
 ): Promise<UserResponse> => {
   try {
-    // Validate password
-    if (!data.password || !data.password.match(VALIDATION_PATTERNS.password)) {
+    // Validasi password sederhana
+    if (!data.password || data.password.length < 8) {
       throw new ApiError(
         "VALIDATION_ERROR",
-        "Password tidak memenuhi ketentuan",
+        "Password minimal 8 karakter",
         400
       );
     }
