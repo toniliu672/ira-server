@@ -1,0 +1,14 @@
+{
+    "version": 2,
+    "buildCommand": "prisma generate && next build",
+    "installCommand": "bun install",
+    "builds": [
+      {
+        "src": "package.json",
+        "use": "@vercel/next"
+      }
+    ],
+    "env": {
+      "PRISMA_CLI_QUERY_ENGINE_TYPE": "binary"
+    }
+  }
