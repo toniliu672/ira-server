@@ -17,13 +17,19 @@ const limiter = rateLimit({
   uniqueTokenPerInterval: 500,
 });
 
+// Correct type definition for Next.js 15 dynamic route params
+type Props = {
+  params: {
+    id: string;
+  };
+};
+
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: Props
 ) {
   try {
-    const { id } = await params;
-    await limiter.check(req, 60);
+    await limiter.check(request, 60);
 
     const cookieStore = await cookies();
     const token = cookieStore.get("admin-token")?.value;
@@ -37,7 +43,7 @@ export async function GET(
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    const user = await getUserById(id);
+    const user = await getUserById(context.params.id);
 
     return NextResponse.json({
       success: true,
@@ -68,12 +74,11 @@ export async function GET(
 }
 
 export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: Props
 ) {
   try {
-    const { id } = await params;
-    await limiter.check(req, 30);
+    await limiter.check(request, 30);
 
     const cookieStore = await cookies();
     const token = cookieStore.get("admin-token")?.value;
@@ -87,10 +92,10 @@ export async function PATCH(
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    const body = await req.json();
+    const body = await request.json();
     const validatedData = userUpdateSchema.parse(body);
 
-    const user = await updateUser(id, validatedData);
+    const user = await updateUser(context.params.id, validatedData);
 
     return NextResponse.json({
       success: true,
@@ -121,12 +126,11 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: Props
 ) {
   try {
-    const { id } = await params;
-    await limiter.check(req, 20);
+    await limiter.check(request, 20);
 
     const cookieStore = await cookies();
     const token = cookieStore.get("admin-token")?.value;
@@ -140,7 +144,7 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    await deleteUser(id);
+    await deleteUser(context.params.id);
 
     return NextResponse.json({
       success: true,
