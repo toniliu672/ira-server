@@ -71,7 +71,6 @@ export function UserDialog({
       phone: "",
       address: "",
       activeStatus: true,
-      dateOfBirth: undefined,
     },
   });
 
@@ -87,7 +86,6 @@ export function UserDialog({
         phone: user.phone || "",
         address: user.address || "",
         activeStatus: user.activeStatus,
-        dateOfBirth: user.dateOfBirth || undefined,
       });
     } else if (!open) {
       // Reset form when dialog closes
@@ -99,7 +97,6 @@ export function UserDialog({
         phone: "",
         address: "",
         activeStatus: true,
-        dateOfBirth: undefined,
         password: "", // Only include password field for new users
       });
     }
