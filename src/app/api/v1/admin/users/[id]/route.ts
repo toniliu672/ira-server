@@ -1,7 +1,12 @@
 // src/app/api/v1/admin/users/[id]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { getUserById, updateUser, deleteUser } from "@/services/adminUserService";
+import { cookies } from "next/headers";
+import {
+  getUserById,
+  updateUser,
+  deleteUser,
+} from "@/services/adminUserService";
 import { userUpdateSchema } from "@/types/user";
 import { ApiError } from "@/lib/errors";
 import { verifyJWT } from "@/lib/auth";
@@ -12,193 +17,149 @@ const limiter = rateLimit({
   uniqueTokenPerInterval: 500,
 });
 
-// GET /api/v1/admin/users/[id] - Get user detail
 export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-): Promise<NextResponse> {
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    await limiter.check(request, 60);
+    await limiter.check(req, 60);
 
-    const token = request.headers.get("authorization")?.split(" ")[1];
+    const cookieStore = await cookies();
+    const token = cookieStore.get("admin-token")?.value;
+
     if (!token) {
-      return NextResponse.json(
-        { 
-          success: false,
-          message: "Unauthorized access",
-          error: "No token provided" 
-        },
-        { status: 401 }
-      );
+      throw new ApiError("UNAUTHORIZED", "Token tidak ditemukan", 401);
     }
 
     const payload = await verifyJWT(token);
     if (payload.role !== "admin") {
-      return NextResponse.json(
-        { 
-          success: false,
-          message: "Forbidden access",
-          error: "Admin privileges required" 
-        },
-        { status: 403 }
-      );
+      throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    const { id } = await context.params;
-    const user = await getUserById(id);
-    
+    const user = await getUserById(params.id);
+
     return NextResponse.json({
       success: true,
-      message: "Successfully retrieved user details",
-      data: user
+      message: "Berhasil mengambil data user",
+      data: user,
     });
   } catch (e) {
+    if (e instanceof ApiError) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: e.message,
+          error: e.code,
+        },
+        { status: e.status }
+      );
+    }
     console.error("Admin Get User Detail Error:", e);
-    if (e instanceof ApiError) {
-      return NextResponse.json(
-        { 
-          success: false,
-          message: e.message,
-          error: e.code 
-        }, 
-        { status: e.status }
-      );
-    }
     return NextResponse.json(
-      { 
+      {
         success: false,
         message: "Internal server error",
-        error: "INTERNAL_ERROR" 
+        error: "INTERNAL_ERROR",
       },
       { status: 500 }
     );
   }
 }
 
-// PATCH /api/v1/admin/users/[id] - Update user
 export async function PATCH(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-): Promise<NextResponse> {
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    await limiter.check(request, 30);
+    await limiter.check(req, 30);
 
-    const token = request.headers.get("authorization")?.split(" ")[1];
+    const cookieStore = await cookies();
+    const token = cookieStore.get("admin-token")?.value;
+
     if (!token) {
-      return NextResponse.json(
-        { 
-          success: false,
-          message: "Unauthorized access",
-          error: "No token provided" 
-        },
-        { status: 401 }
-      );
+      throw new ApiError("UNAUTHORIZED", "Token tidak ditemukan", 401);
     }
 
     const payload = await verifyJWT(token);
     if (payload.role !== "admin") {
-      return NextResponse.json(
-        { 
-          success: false,
-          message: "Forbidden access",
-          error: "Admin privileges required" 
-        },
-        { status: 403 }
-      );
+      throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    const { id } = await context.params;
-    const body = await request.json();
-    
-    // Validasi input
+    const body = await req.json();
     const validatedData = userUpdateSchema.parse(body);
-    
-    const user = await updateUser(id, validatedData);
-    
+
+    const user = await updateUser(params.id, validatedData);
+
     return NextResponse.json({
       success: true,
-      message: "Successfully updated user",
-      data: user
+      message: "Berhasil mengupdate user",
+      data: user,
     });
   } catch (e) {
-    console.error("Admin Update User Error:", e);
     if (e instanceof ApiError) {
       return NextResponse.json(
-        { 
+        {
           success: false,
           message: e.message,
-          error: e.code 
-        }, 
+          error: e.code,
+        },
         { status: e.status }
       );
     }
+    console.error("Admin Update User Error:", e);
     return NextResponse.json(
-      { 
+      {
         success: false,
         message: "Internal server error",
-        error: "INTERNAL_ERROR" 
+        error: "INTERNAL_ERROR",
       },
       { status: 500 }
     );
   }
 }
 
-// DELETE /api/v1/admin/users/[id] - Delete user
 export async function DELETE(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-): Promise<NextResponse> {
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    await limiter.check(request, 20);
+    await limiter.check(req, 20);
 
-    const token = request.headers.get("authorization")?.split(" ")[1];
+    const cookieStore = await cookies();
+    const token = cookieStore.get("admin-token")?.value;
+
     if (!token) {
-      return NextResponse.json(
-        { 
-          success: false,
-          message: "Unauthorized access",
-          error: "No token provided" 
-        },
-        { status: 401 }
-      );
+      throw new ApiError("UNAUTHORIZED", "Token tidak ditemukan", 401);
     }
 
     const payload = await verifyJWT(token);
     if (payload.role !== "admin") {
-      return NextResponse.json(
-        { 
-          success: false,
-          message: "Forbidden access",
-          error: "Admin privileges required" 
-        },
-        { status: 403 }
-      );
+      throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    const { id } = await context.params;
-    await deleteUser(id);
-    
+    await deleteUser(params.id);
+
     return NextResponse.json({
       success: true,
-      message: "Successfully deleted user"
-    }, { status: 200 });
+      message: "Berhasil menghapus user",
+    });
   } catch (e) {
-    console.error("Admin Delete User Error:", e);
     if (e instanceof ApiError) {
       return NextResponse.json(
-        { 
+        {
           success: false,
           message: e.message,
-          error: e.code 
-        }, 
+          error: e.code,
+        },
         { status: e.status }
       );
     }
+    console.error("Admin Delete User Error:", e);
     return NextResponse.json(
-      { 
+      {
         success: false,
         message: "Internal server error",
-        error: "INTERNAL_ERROR" 
+        error: "INTERNAL_ERROR",
       },
       { status: 500 }
     );
