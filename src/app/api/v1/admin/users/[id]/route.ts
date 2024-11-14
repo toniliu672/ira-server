@@ -1,5 +1,3 @@
-// src/app/api/v1/admin/users/[id]/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import {
@@ -17,14 +15,9 @@ const limiter = rateLimit({
   uniqueTokenPerInterval: 500,
 });
 
-// Menggunakan type definition yang benar untuk Next.js 15
-type Context = {
-  params: Record<string, string | string[]>;
-};
-
 export async function GET(
   request: NextRequest,
-  context: Context
+  { params }: { params: { id: string } }
 ) {
   try {
     await limiter.check(request, 60);
@@ -41,7 +34,7 @@ export async function GET(
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    const user = await getUserById(context.params.id as string);
+    const user = await getUserById(params.id);
 
     return NextResponse.json({
       success: true,
@@ -73,7 +66,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  context: Context
+  { params }: { params: { id: string } }
 ) {
   try {
     await limiter.check(request, 30);
@@ -93,7 +86,7 @@ export async function PATCH(
     const body = await request.json();
     const validatedData = userUpdateSchema.parse(body);
 
-    const user = await updateUser(context.params.id as string, validatedData);
+    const user = await updateUser(params.id, validatedData);
 
     return NextResponse.json({
       success: true,
@@ -125,7 +118,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  context: Context
+  { params }: { params: { id: string } }
 ) {
   try {
     await limiter.check(request, 20);
@@ -142,7 +135,7 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    await deleteUser(context.params.id as string);
+    await deleteUser(params.id);
 
     return NextResponse.json({
       success: true,
