@@ -17,16 +17,9 @@ const limiter = rateLimit({
   uniqueTokenPerInterval: 500,
 });
 
-// Correct type definition for Next.js 15 dynamic route params
-type Props = {
-  params: {
-    id: string;
-  };
-};
-
 export async function GET(
   request: NextRequest,
-  context: Props
+  { params }: { params: { id: string } }
 ) {
   try {
     await limiter.check(request, 60);
@@ -43,7 +36,7 @@ export async function GET(
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    const user = await getUserById(context.params.id);
+    const user = await getUserById(params.id);
 
     return NextResponse.json({
       success: true,
@@ -75,7 +68,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  context: Props
+  { params }: { params: { id: string } }
 ) {
   try {
     await limiter.check(request, 30);
@@ -95,7 +88,7 @@ export async function PATCH(
     const body = await request.json();
     const validatedData = userUpdateSchema.parse(body);
 
-    const user = await updateUser(context.params.id, validatedData);
+    const user = await updateUser(params.id, validatedData);
 
     return NextResponse.json({
       success: true,
@@ -127,7 +120,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  context: Props
+  { params }: { params: { id: string } }
 ) {
   try {
     await limiter.check(request, 20);
@@ -144,7 +137,7 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    await deleteUser(context.params.id);
+    await deleteUser(params.id);
 
     return NextResponse.json({
       success: true,
