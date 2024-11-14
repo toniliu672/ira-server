@@ -17,8 +17,8 @@ const limiter = rateLimit({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
     await limiter.check(request, 60);
 
@@ -34,7 +34,8 @@ export async function GET(
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    const user = await getUserById(params.id);
+    const { id } = await context.params;
+    const user = await getUserById(id);
 
     return NextResponse.json({
       success: true,
@@ -66,8 +67,8 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
     await limiter.check(request, 30);
 
@@ -83,10 +84,19 @@ export async function PATCH(
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
+    // Validate CSRF
+    const csrfToken = request.headers.get("X-CSRF-Token");
+    const storedCsrfToken = cookieStore.get("csrf-token")?.value;
+
+    if (!csrfToken || !storedCsrfToken || csrfToken !== storedCsrfToken) {
+      throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
+    }
+
+    const { id } = await context.params;
     const body = await request.json();
     const validatedData = userUpdateSchema.parse(body);
 
-    const user = await updateUser(params.id, validatedData);
+    const user = await updateUser(id, validatedData);
 
     return NextResponse.json({
       success: true,
@@ -118,8 +128,8 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   try {
     await limiter.check(request, 20);
 
@@ -135,7 +145,16 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    await deleteUser(params.id);
+    // Validate CSRF
+    const csrfToken = request.headers.get("X-CSRF-Token");
+    const storedCsrfToken = cookieStore.get("csrf-token")?.value;
+
+    if (!csrfToken || !storedCsrfToken || csrfToken !== storedCsrfToken) {
+      throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
+    }
+
+    const { id } = await context.params;
+    await deleteUser(id);
 
     return NextResponse.json({
       success: true,
