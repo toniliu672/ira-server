@@ -19,6 +19,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
@@ -71,13 +72,13 @@ export function UserDialog({
       phone: "",
       address: "",
       activeStatus: true,
+      password: "", // Selalu sediakan field password
     },
   });
 
   // Reset form when dialog opens/closes or user changes
   useEffect(() => {
     if (open && user) {
-      // If editing existing user
       form.reset({
         username: user.username,
         email: user.email,
@@ -86,9 +87,9 @@ export function UserDialog({
         phone: user.phone || "",
         address: user.address || "",
         activeStatus: user.activeStatus,
+        password: "", // Reset password field saat edit
       });
     } else if (!open) {
-      // Reset form when dialog closes
       form.reset({
         username: "",
         email: "",
@@ -97,7 +98,7 @@ export function UserDialog({
         phone: "",
         address: "",
         activeStatus: true,
-        password: "", // Only include password field for new users
+        password: "",
       });
     }
   }, [open, user, form]);
@@ -114,9 +115,10 @@ export function UserDialog({
         throw new Error("CSRF token tidak ditemukan");
       }
 
-      // Remove password field if editing user and password is empty
-      if (user && !data.password) {
-        delete data.password;
+      // Jika password kosong dan updating user, hapus field password
+      const submitData = { ...data };
+      if (user && !submitData.password) {
+        delete submitData.password;
       }
 
       const response = await fetch(url, {
@@ -126,7 +128,7 @@ export function UserDialog({
           "X-CSRF-Token": csrfToken,
         },
         credentials: "include",
-        body: JSON.stringify(data),
+        body: JSON.stringify(submitData),
       });
 
       if (!response.ok) {
@@ -177,7 +179,6 @@ export function UserDialog({
                           {...field}
                           className="w-full"
                           placeholder="Masukkan username"
-                          disabled={!!user} // Disable username edit for existing users
                         />
                       </FormControl>
                       <FormMessage />
@@ -197,7 +198,6 @@ export function UserDialog({
                           {...field}
                           className="w-full"
                           placeholder="contoh@email.com"
-                          disabled={!!user} // Disable email edit for existing users
                         />
                       </FormControl>
                       <FormMessage />
@@ -205,26 +205,34 @@ export function UserDialog({
                   )}
                 />
 
-                {!user && (
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem className="col-span-full">
-                        <FormLabel>Password</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="password"
-                            {...field}
-                            className="w-full"
-                            placeholder="Masukkan password yang kuat"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem className="col-span-full">
+                      <FormLabel>
+                        Password{" "}
+                        {user ? "(Kosongkan jika tidak ingin mengubah)" : ""}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          {...field}
+                          className="w-full"
+                          placeholder={
+                            user
+                              ? "Masukkan password baru"
+                              : "Minimal 8 karakter"
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Password minimal 8 karakter
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
             </div>
 
