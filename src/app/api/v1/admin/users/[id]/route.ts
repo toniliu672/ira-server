@@ -145,12 +145,19 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Akses ditolak", 403);
     }
 
-    // Validate CSRF
-    const csrfToken = request.headers.get("X-CSRF-Token");
+    // PERBAIKAN: Cara mengambil dan validasi CSRF token
+    const csrfToken = request.headers.get("x-csrf-token"); // Perhatikan lowercase
     const storedCsrfToken = cookieStore.get("csrf-token")?.value;
 
-    if (!csrfToken || !storedCsrfToken || csrfToken !== storedCsrfToken) {
-      throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
+    console.log('Received CSRF Token:', csrfToken);
+    console.log('Stored CSRF Token:', storedCsrfToken);
+
+    if (!csrfToken || !storedCsrfToken) {
+      throw new ApiError("FORBIDDEN", "CSRF token tidak ditemukan", 403);
+    }
+
+    if (csrfToken !== storedCsrfToken) {
+      throw new ApiError("FORBIDDEN", "CSRF token tidak valid", 403);
     }
 
     const { id } = await context.params;
