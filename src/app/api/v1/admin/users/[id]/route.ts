@@ -14,13 +14,13 @@ const limiter = rateLimit({
 
 // GET /api/v1/admin/users/[id] - Get user detail
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: { id: string } }
 ) {
   try {
-    await limiter.check(req, 60);
+    await limiter.check(request, 60);
 
-    const token = req.headers.get("authorization")?.split(" ")[1];
+    const token = request.headers.get("authorization")?.split(" ")[1];
     if (!token) {
       return NextResponse.json(
         { 
@@ -44,7 +44,7 @@ export async function GET(
       );
     }
 
-    const user = await getUserById(params.id);
+    const user = await getUserById(context.params.id);
     
     return NextResponse.json({
       success: true,
@@ -76,13 +76,13 @@ export async function GET(
 
 // PATCH /api/v1/admin/users/[id] - Update user
 export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: { id: string } }
 ) {
   try {
-    await limiter.check(req, 30);
+    await limiter.check(request, 30);
 
-    const token = req.headers.get("authorization")?.split(" ")[1];
+    const token = request.headers.get("authorization")?.split(" ")[1];
     if (!token) {
       return NextResponse.json(
         { 
@@ -106,12 +106,12 @@ export async function PATCH(
       );
     }
 
-    const body = await req.json();
+    const body = await request.json();
     
     // Validasi input
     const validatedData = userUpdateSchema.parse(body);
     
-    const user = await updateUser(params.id, validatedData);
+    const user = await updateUser(context.params.id, validatedData);
     
     return NextResponse.json({
       success: true,
@@ -143,13 +143,13 @@ export async function PATCH(
 
 // DELETE /api/v1/admin/users/[id] - Delete user
 export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  context: { params: { id: string } }
 ) {
   try {
-    await limiter.check(req, 20);
+    await limiter.check(request, 20);
 
-    const token = req.headers.get("authorization")?.split(" ")[1];
+    const token = request.headers.get("authorization")?.split(" ")[1];
     if (!token) {
       return NextResponse.json(
         { 
@@ -173,7 +173,7 @@ export async function DELETE(
       );
     }
 
-    await deleteUser(params.id);
+    await deleteUser(context.params.id);
     
     return NextResponse.json({
       success: true,
