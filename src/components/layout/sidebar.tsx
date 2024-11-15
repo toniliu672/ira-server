@@ -1,5 +1,3 @@
-// src/components/layout/Sidebar.tsx
-
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -20,6 +18,7 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 interface SidebarProps {
   className?: string;
@@ -90,8 +89,9 @@ export default function Sidebar({
       <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
         <SheetContent side="left" className="w-64 p-0">
           <div className="flex flex-col h-full bg-background">
-            <div className="flex h-16 items-center px-6 border-b">
+            <div className="flex h-16 items-center justify-between px-6 border-b">
               <h2 className="font-semibold">Admin Panel</h2>
+              <ThemeToggle />
             </div>
 
             <nav className="flex-1 px-3 py-4">
@@ -143,24 +143,31 @@ export default function Sidebar({
         )}
       >
         <div className="flex flex-col h-full">
-          <div className="flex h-16 items-center justify-between px-4 border-b">
-            <h2
-              className={cn(
-                "font-semibold transition-opacity",
-                isCollapsed && "opacity-0 invisible"
+          <div className="flex h-16 items-center border-b px-4">
+            <div className="flex-1 flex items-center">
+              <h2
+                className={cn(
+                  "font-semibold transition-opacity duration-300",
+                  isCollapsed && "opacity-0 hidden"
+                )}
+              >
+                Admin Panel
+              </h2>
+              {!isCollapsed && (
+                <div className="ml-auto">
+                  <ThemeToggle />
+                </div>
               )}
-            >
-              Admin Panel
-            </h2>
+            </div>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => onCollapse(!isCollapsed)}
-              className="h-8 w-8"
+              className="ml-auto h-8 w-8 shrink-0"
             >
               <ChevronLeft
                 className={cn(
-                  "h-4 w-4 transition-transform",
+                  "h-4 w-4 transition-transform duration-300",
                   isCollapsed && "rotate-180"
                 )}
               />
@@ -191,7 +198,7 @@ export default function Sidebar({
                     />
                     <span
                       className={cn(
-                        "font-medium transition-opacity",
+                        "font-medium transition-opacity duration-300",
                         isCollapsed && "opacity-0 w-0 hidden"
                       )}
                     >
@@ -219,7 +226,12 @@ export default function Sidebar({
                   )}
                 >
                   <LogOut className="h-5 w-5" />
-                  <span className={cn("font-medium", isCollapsed && "hidden")}>
+                  <span
+                    className={cn(
+                      "font-medium transition-opacity duration-300",
+                      isCollapsed && "opacity-0 w-0 hidden"
+                    )}
+                  >
                     Logout
                   </span>
                 </Button>

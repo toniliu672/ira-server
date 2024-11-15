@@ -53,7 +53,7 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Admin Login</CardTitle>

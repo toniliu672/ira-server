@@ -5,13 +5,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Table,
   TableBody,
   TableCell,
@@ -30,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { MoreHorizontal } from "lucide-react";
 import { type AdminResponse, type AdminFilters } from "@/types/admin";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 
 import { CreateAdminDialog } from "./_components/create-admin-dialog";
 import { EditAdminDialog } from "./_components/edit-admin-dialog";
@@ -121,111 +115,103 @@ export default function AdminAccountPage() {
   }, [fetchAdmins]);
 
   return (
-    <div className="container mx-auto py-8">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Admin Management</CardTitle>
-            <CardDescription>
-              Kelola akun administrator sistem
-            </CardDescription>
-          </div>
-          
-          <CreateAdminDialog onSuccess={fetchAdmins} />
-        </CardHeader>
+    <div className="py-8 space-y-8 mx-10">
+      <PageHeader
+        title="Admin Management"
+        description="Kelola akun administrator sistem"
+      >
+        <CreateAdminDialog onSuccess={fetchAdmins} />
+      </PageHeader>
 
-        <CardContent>
-          <div className="space-y-4">
-            <Input
-              placeholder="Cari admin..."
-              value={filters.search}
-              onChange={(e) => setFilters(prev => ({
-                ...prev,
-                search: e.target.value
-              }))}
-              className="max-w-sm"
-            />
+      <div className="space-y-4">
+        <Input
+          placeholder="Cari admin..."
+          value={filters.search}
+          onChange={(e) => setFilters(prev => ({
+            ...prev,
+            search: e.target.value
+          }))}
+          className="max-w-sm"
+        />
 
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {TABLE_HEADERS.map(({ key, label }) => (
-                      <TableHead
-                        key={key}
-                        className={cn(
-                          "cursor-pointer",
-                          filters.sortBy === key && "text-primary"
-                        )}
-                        onClick={() => setFilters(prev => ({
-                          ...prev,
-                          sortBy: key,
-                          sortOrder: prev.sortOrder === "asc" ? "desc" : "asc"
-                        }))}
-                      >
-                        {label}
-                        {filters.sortBy === key && (
-                          <span className="ml-2">
-                            {filters.sortOrder === "asc" ? "↑" : "↓"}
-                          </span>
-                        )}
-                      </TableHead>
-                    ))}
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {TABLE_HEADERS.map(({ key, label }) => (
+                  <TableHead
+                    key={key}
+                    className={cn(
+                      "cursor-pointer",
+                      filters.sortBy === key && "text-primary"
+                    )}
+                    onClick={() => setFilters(prev => ({
+                      ...prev,
+                      sortBy: key,
+                      sortOrder: prev.sortOrder === "asc" ? "desc" : "asc"
+                    }))}
+                  >
+                    {label}
+                    {filters.sortBy === key && (
+                      <span className="ml-2">
+                        {filters.sortOrder === "asc" ? "↑" : "↓"}
+                      </span>
+                    )}
+                  </TableHead>
+                ))}
+                <TableHead className="w-[100px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
 
-                <TableBody>
-                  {loading ? (
-                    <LoadingSkeleton />
-                  ) : admins.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center">
-                        Tidak ada data admin
-                      </TableCell>
-                    </TableRow>
-                  ) : admins.map((admin) => (
-                    <TableRow key={admin.id}>
-                      <TableCell>{admin.username}</TableCell>
-                      <TableCell>{admin.name}</TableCell>
-                      <TableCell>{admin.email}</TableCell>
-                      <TableCell>{formatDate(admin.createdAt)}</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedAdmin(admin);
-                                setEditDialogOpen(true);
-                              }}
-                            >
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => {
-                                setSelectedAdmin(admin);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              Hapus
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            <TableBody>
+              {loading ? (
+                <LoadingSkeleton />
+              ) : admins.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center">
+                    Tidak ada data admin
+                  </TableCell>
+                </TableRow>
+              ) : admins.map((admin) => (
+                <TableRow key={admin.id}>
+                  <TableCell>{admin.username}</TableCell>
+                  <TableCell>{admin.name}</TableCell>
+                  <TableCell>{admin.email}</TableCell>
+                  <TableCell>{formatDate(admin.createdAt)}</TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedAdmin(admin);
+                            setEditDialogOpen(true);
+                          }}
+                        >
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => {
+                            setSelectedAdmin(admin);
+                            setDeleteDialogOpen(true);
+                          }}
+                        >
+                          Hapus
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
 
       <EditAdminDialog
         admin={selectedAdmin}
