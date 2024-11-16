@@ -2,8 +2,8 @@
 "use client"
 
 import { useState } from 'react';
-import Sidebar from '@/components/layout/sidebar';
 import { cn } from '@/lib/utils';
+import Sidebar from '@/components/layout/sidebar';
 
 export default function AdminLayout({
   children,
@@ -17,11 +17,11 @@ export default function AdminLayout({
       <Sidebar isCollapsed={isCollapsed} onCollapse={setIsCollapsed} />
       <main 
         className={cn(
-          "flex-1 transition-all duration-300",
-          isCollapsed ? "ml-16" : "ml-64"
+          "flex-1 transition-all duration-300 p-4 md:p-6",
+          isCollapsed ? "md:ml-16" : "md:ml-64"
         )}
       >
-        <div className="container mx-auto">
+        <div className="container mx-auto max-w-7xl">
           {children}
         </div>
       </main>
