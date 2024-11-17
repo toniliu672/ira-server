@@ -5,7 +5,7 @@ export const AUTH_CONFIG = {
     jwt: {
       accessToken: {
         secret: process.env.JWT_ACCESS_SECRET!,
-        expiresIn: '15m',
+        expiresIn: '1d',
       },
       refreshToken: {
         secret: process.env.JWT_REFRESH_SECRET!,

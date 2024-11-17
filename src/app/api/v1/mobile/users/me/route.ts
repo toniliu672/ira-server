@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/errors";
 import { verifyJWT } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { getUserDevices, updatePassword } from "@/services/mobileUserService";
+import prisma from "@/lib/prisma";
 
 const limiter = rateLimit({
   interval: 60 * 1000,
@@ -32,13 +33,11 @@ export async function PATCH(req: NextRequest) {
 
     const payload = await verifyJWT(token);
     if (payload.role !== "user") {
-      // src/app/api/v1/mobile/users/me/route.ts (continued)
-
       return NextResponse.json(
         {
           success: false,
           message: "Invalid token type",
-          error: "INVALID_TOKEN_TYPE",
+          error: "INVALID_TOKEN_TYPE", 
         },
         { status: 403 }
       );
@@ -46,16 +45,37 @@ export async function PATCH(req: NextRequest) {
 
     const body = await req.json();
 
-    // Mencegah perubahan fields yang tidak diizinkan
-    delete body.username; // Username tidak boleh diubah
-    delete body.email; // Email tidak boleh diubah
-    delete body.activeStatus; // Status aktif tidak boleh diubah via mobile
-    delete body.role; // Role tidak boleh diubah
-    delete body.deviceId; // Device ID tidak boleh diubah via update profile
+    // Hanya batasi fields yang tidak boleh diubah user
+    delete body.role;
+    delete body.deviceId;
+    delete body.activeStatus;
 
-    // Validasi input yang diperbolehkan
+    // Cek duplikat username/email kalau mau diganti
+    if (body.username || body.email) {
+      const duplicate = await prisma.student.findFirst({
+        where: {
+          OR: [
+            body.username ? { username: body.username } : {},
+            body.email ? { email: body.email } : {},
+          ],
+          NOT: { id: payload.sub },
+        },
+      });
+
+      if (duplicate) {
+        const field = duplicate.username === body.username ? "Username" : "Email";
+        return NextResponse.json(
+          {
+            success: false,
+            message: `${field} sudah digunakan`,
+            error: "DUPLICATE_ENTRY",
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const validatedData = userUpdateSchema.parse(body);
-
     const user = await updateUser(payload.sub, validatedData);
 
     return NextResponse.json({

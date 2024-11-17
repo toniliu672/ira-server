@@ -63,10 +63,11 @@ model RefreshToken {
 
 model Materi {
   id                    String      @id @default(uuid()) @map("_id")
-  judul                 String      
-  tujuanPembelajaran   String[]    // Array tujuan pembelajaran
-  capaianPembelajaran  String[]    // Array capaian pembelajaran 
-  deskripsi            String?
+  judul                 String      @unique
+  tujuanPembelajaran    String[]    // Array tujuan pembelajaran
+  capaianPembelajaran   String[]    // Array capaian pembelajaran 
+  deskripsi            String?     // Optional karena fokus pembelajaran ada di subMateri
+  thumbnailUrl         String?     // Optional thumbnail untuk preview
   urutan               Int         // Untuk mengurutkan materi
   status               Boolean     @default(true)
   subMateri            SubMateri[]
@@ -82,15 +83,18 @@ model Materi {
 model SubMateri {
   id          String   @id @default(uuid()) @map("_id")
   judul       String   
-  materi      String    // Bisa menyimpan rich text atau markdown
-  urutan      Int       // Untuk mengurutkan sub-materi dalam materi
-  status      Boolean   @default(true)
-  materiId    String    // Referensi ke materi induk
-  materiRef   Materi    @relation(fields: [materiId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  createdBy   String    // Admin ID pembuat
-  updatedBy   String?   // Admin ID pengubah terakhir
+  konten      String   // Rich text content (markdown/html)
+  imageUrls   String[] // Array of image URLs
+  videoUrl    String?  // Optional video URL
+  durasi      Int      // Durasi pembelajaran dalam menit
+  urutan      Int      // Untuk mengurutkan sub-materi dalam materi
+  status      Boolean  @default(true)
+  materiId    String   // Referensi ke materi induk
+  materiRef   Materi   @relation(fields: [materiId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String   // Admin ID pembuat
+  updatedBy   String?  // Admin ID pengubah terakhir
 
   @@map("sub_materi")
   @@index([materiId, status])
