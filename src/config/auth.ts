@@ -56,7 +56,7 @@ export const AUTH_CONFIG = {
 // Validation regex patterns
 export const VALIDATION_PATTERNS = {
   username: /^[a-zA-Z0-9_]{3,20}$/, // 3-20 chars, alphanumeric + underscore
-  password: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+  password: /^.{8,}$/, // Minimal 8 karakter
   phone: /^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/, // International phone format
 };
 

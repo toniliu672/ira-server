@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const validatedData = userSchema.parse({
       ...body,
       deviceId,
-      activeStatus: true, // User baru selalu aktif
+      activeStatus: true, 
     });
     
     const user = await createUser(validatedData);
