@@ -1,10 +1,10 @@
 // src/app/api/v1/mobile/auth/logout/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { refreshTokenRepository } from "@/repositories/refreshTokenRepository";
 import { verifyJWT } from "@/lib/auth";
 import { ApiError } from "@/lib/errors";
 import { rateLimit } from "@/lib/rate-limit";
+import { userRepository } from "@/repositories/userRepository";
 
 const limiter = rateLimit({
   interval: 60 * 1000, // 1 minute
@@ -30,10 +30,12 @@ export async function POST(request: NextRequest) {
 
     // Get device ID from header
     const deviceId = request.headers.get("x-device-id");
-
-    // Revoke all refresh tokens for this device
     if (deviceId) {
-      await refreshTokenRepository.revokeByDeviceId(payload.sub, deviceId);
+      // Clear device ID if it matches
+      const user = await userRepository.findById(payload.sub);
+      if (user && user.deviceId === deviceId) {
+        await userRepository.update(payload.sub, { deviceId: null });
+      }
     }
 
     return NextResponse.json({
