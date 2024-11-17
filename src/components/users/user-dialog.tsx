@@ -36,10 +36,19 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import type { UserResponse } from "@/types/user";
 import { userSchema } from "@/types/user";
-import type { z } from "zod";
+import { z } from "zod";
 import { cn } from "@/lib/utils";
 
-type FormData = z.infer<typeof userSchema>;
+// Schema khusus untuk form dengan password opsional saat edit
+const userFormSchema = userSchema.extend({
+  password: z
+    .string()
+    .min(8, "Password minimal 8 karakter")
+    .optional()
+    .or(z.literal("")),
+});
+
+type FormData = z.infer<typeof userFormSchema>;
 
 interface UserDialogProps {
   user: UserResponse | null;
@@ -63,7 +72,7 @@ export function UserDialog({
   onSuccess,
 }: UserDialogProps) {
   const form = useForm<FormData>({
-    resolver: zodResolver(userSchema),
+    resolver: zodResolver(userFormSchema), // Gunakan schema yang baru
     defaultValues: {
       username: "",
       email: "",
@@ -72,7 +81,7 @@ export function UserDialog({
       phone: "",
       address: "",
       activeStatus: true,
-      password: "", // Selalu sediakan field password
+      password: "", // Kosong by default
     },
   });
 
@@ -117,7 +126,7 @@ export function UserDialog({
 
       // Jika password kosong dan updating user, hapus field password
       const submitData = { ...data };
-      if (user && !submitData.password) {
+      if (user && (!submitData.password || submitData.password === "")) {
         delete submitData.password;
       }
 
@@ -224,6 +233,7 @@ export function UserDialog({
                               ? "Masukkan password baru"
                               : "Minimal 8 karakter"
                           }
+                          required={!user} // Hanya required saat create
                         />
                       </FormControl>
                       <FormDescription>
