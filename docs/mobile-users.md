@@ -1,32 +1,30 @@
 # Mobile Users API Specification
 
-## Registration
-**Endpoint:** POST /api/v1/mobile/users  
-**Description:** Register akun baru untuk aplikasi mobile
+## Overview
+Base URL: `/api/v1/mobile`
+Semua endpoint membutuhkan rate limiting dan proper error handling.
+
+## Authentication
+- Semua endpoint protected menggunakan Bearer token di header
+- Format: `Authorization: Bearer <token>`
+- Rate limiting diterapkan untuk membatasi request
+
+## Endpoints
+
+### Get Profile
+**Endpoint:** GET `/users/me`  
+**Description:** Mendapatkan profil user yang sedang login
 
 **Request Headers:**
 ```
-X-Device-ID: string (required) - Unique identifier perangkat
+Authorization: Bearer <token>
 ```
 
-**Request Body:**
-```json
-{
-  "username": "string",
-  "email": "string",
-  "password": "string",
-  "fullName": "string",
-  "gender": "MALE" | "FEMALE",
-  "phone": "string" (optional),
-  "address": "string" (optional)
-}
-```
-
-**Success Response (201 Created):**
+**Success Response (200 OK):**
 ```json
 {
   "success": true,
-  "message": "Successfully registered user",
+  "message": "Successfully retrieved profile",
   "data": {
     "id": "string",
     "username": "string",
@@ -35,20 +33,21 @@ X-Device-ID: string (required) - Unique identifier perangkat
     "gender": "MALE" | "FEMALE",
     "phone": "string",
     "address": "string",
-    "activeStatus": true,
+    "activeStatus": boolean,
+    "lastLogin": "datetime",
     "createdAt": "datetime",
     "updatedAt": "datetime"
   }
 }
 ```
 
-## Update Profile
-**Endpoint:** PATCH /api/v1/mobile/users/me  
+### Update Profile
+**Endpoint:** PATCH `/users/me`  
 **Description:** Update profil pengguna yang sedang login
 
 **Request Headers:**
 ```
-Authorization: Bearer <accessToken>
+Authorization: Bearer <token>
 ```
 
 **Request Body:** (semua field optional)
@@ -56,11 +55,15 @@ Authorization: Bearer <accessToken>
 {
   "username": "string",
   "email": "string",
-  "fullName": "string",
+  "fullName": "string", 
   "phone": "string",
   "address": "string"
 }
 ```
+
+**Notes:**
+- Fields `role`, `deviceId`, dan `activeStatus` tidak dapat diubah melalui endpoint ini
+- Username dan email akan dicek untuk duplikasi sebelum update
 
 **Success Response (200 OK):**
 ```json
@@ -68,18 +71,18 @@ Authorization: Bearer <accessToken>
   "success": true,
   "message": "Successfully updated profile",
   "data": {
-    // Updated user data
+    // Updated user data similar to Get Profile response
   }
 }
 ```
 
-## Update Password
-**Endpoint:** PUT /api/v1/mobile/users/me/password  
+### Update Password
+**Endpoint:** PUT `/users/me/password`  
 **Description:** Mengubah password pengguna
 
 **Request Headers:**
 ```
-Authorization: Bearer <accessToken>
+Authorization: Bearer <token>
 ```
 
 **Request Body:**
@@ -90,6 +93,10 @@ Authorization: Bearer <accessToken>
 }
 ```
 
+**Notes:**
+- Password baru harus memenuhi kebijakan password (minimal 8 karakter, dll)
+- Rate limit lebih ketat untuk endpoint password
+
 **Success Response (200 OK):**
 ```json
 {
@@ -98,13 +105,13 @@ Authorization: Bearer <accessToken>
 }
 ```
 
-## Get User Devices
-**Endpoint:** GET /api/v1/mobile/users/me  
+### Get User Devices
+**Endpoint:** GET `/users/me/devices`  
 **Description:** Mendapatkan daftar perangkat yang terdaftar untuk pengguna
 
 **Request Headers:**
 ```
-Authorization: Bearer <accessToken>
+Authorization: Bearer <token>
 ```
 
 **Success Response (200 OK):**
@@ -116,16 +123,59 @@ Authorization: Bearer <accessToken>
     {
       "id": "string",
       "deviceId": "string",
-      "lastLogin": "datetime",
-      "deviceInfo": "string"
+      "lastLogin": "datetime"
     }
   ]
 }
 ```
 
-**Common Error Responses:**
-- `400` - Input tidak valid atau device ID tidak ada
-- `401` - Token tidak ada atau tidak valid
-- `403` - Token type tidak sesuai
-- `409` - Username/email sudah digunakan
-- `429` - Rate limit exceeded
+## Error Handling
+
+Semua endpoint mengembalikan format error yang konsisten:
+
+```json
+{
+  "success": false,
+  "message": "Error message",
+  "error": "ERROR_CODE"
+}
+```
+
+### Common Error Codes & Status:
+
+1. Authentication & Authorization:
+   - `401 Unauthorized`
+     - "No token provided"
+     - "Token invalid/expired"
+   - `403 Forbidden`
+     - "Invalid token type"
+     - "Account inactive"
+
+2. Input Validation:
+   - `400 Bad Request`
+     - "VALIDATION_ERROR"
+     - "MISSING_REQUIRED_FIELDS"
+     - "INVALID_PASSWORD"
+
+3. Conflicts:
+   - `409 Conflict`
+     - "DUPLICATE_ENTRY" (username/email sudah digunakan)
+
+4. Rate Limiting:
+   - `429 Too Many Requests`
+     - "Rate limit exceeded"
+
+5. Server Errors:
+   - `500 Internal Server Error`
+     - "INTERNAL_ERROR"
+
+### Rate Limiting
+- Default: 30 requests per minute per IP
+- Password endpoint: 10 requests per minute per IP
+- Headers diberikan untuk remaining requests dan reset time
+
+## Notes
+1. Semua timestamp menggunakan format ISO 8601
+2. Response selalu menyertakan field `success` dan `message`
+3. Data sensitif seperti password tidak pernah dikembalikan dalam response
+4. Validasi input menggunakan Zod schema
