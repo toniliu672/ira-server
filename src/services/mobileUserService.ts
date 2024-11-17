@@ -7,7 +7,6 @@ import type {
   UserDevice,
 } from "@/types/user";
 import { userRepository } from "@/repositories/userRepository";
-import { refreshTokenRepository } from "@/repositories/refreshTokenRepository";
 import bcrypt from "bcrypt";
 import { ApiError } from "@/lib/errors";
 import { VALIDATION_PATTERNS } from "@/config/auth";
@@ -126,14 +125,18 @@ export const updatePassword = async (
 
 export const getUserDevices = async (userId: string): Promise<UserDevice[]> => {
   try {
-    const tokens = await refreshTokenRepository.findByUserId(userId);
+    const user = await userRepository.findById(userId);
+    if (!user || !user.deviceId) {
+      return [];
+    }
 
-    return tokens.map((token) => ({
-      id: token.id,
-      deviceId: token.deviceId || "unknown",
-      lastLogin: token.createdAt,
-      deviceInfo: token.deviceId || undefined,
-    }));
+    return [
+      {
+        id: user.id,
+        deviceId: user.deviceId,
+        lastLogin: user.lastLogin || new Date(),
+      },
+    ];
   } catch (e) {
     console.error("Get Devices Error:", e);
     throw new ApiError("FETCH_FAILED", "Gagal mengambil data perangkat", 500);
@@ -143,7 +146,8 @@ export const getUserDevices = async (userId: string): Promise<UserDevice[]> => {
 export const addDevice = async (
   userId: string,
   deviceId: string,
-  deviceInfo?: string
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _deviceInfo?: string // Unused parameter marked with underscore
 ): Promise<void> => {
   try {
     // Check device limit
@@ -163,14 +167,9 @@ export const addDevice = async (
     }
 
     // Update user's device ID
-    await userRepository.update(userId, { deviceId });
-
-    // Create refresh token with device info
-    await refreshTokenRepository.create({
-      userId,
+    await userRepository.update(userId, {
       deviceId,
-      deviceInfo,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      lastLogin: new Date(),
     });
   } catch (e) {
     if (e instanceof ApiError) throw e;
@@ -184,7 +183,14 @@ export const removeDevice = async (
   deviceId: string
 ): Promise<void> => {
   try {
-    await refreshTokenRepository.revokeByDeviceId(userId, deviceId);
+    const user = await userRepository.findById(userId);
+    if (!user || user.deviceId !== deviceId) {
+      throw new ApiError("NOT_FOUND", "Perangkat tidak ditemukan", 404);
+    }
+
+    await userRepository.update(userId, {
+      deviceId: null,
+    });
   } catch (e) {
     console.error("Remove Device Error:", e);
     throw new ApiError(

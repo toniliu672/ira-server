@@ -3,7 +3,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 import { userRepository } from "@/repositories/userRepository";
-import { refreshTokenRepository } from "@/repositories/refreshTokenRepository";
 import { signJWT } from "@/lib/auth";
 import { ApiError } from "@/lib/errors";
 import { AUTH_CONFIG } from "@/config/auth";
@@ -51,15 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<UserAuthR
       throw new ApiError("UNAUTHORIZED", "Invalid credentials", 401);
     }
 
-    // Check device limit if device ID is provided
-    if (deviceId) {
-      const devices = await refreshTokenRepository.findByUserId(user.id);
-      if (devices.length >= AUTH_CONFIG.session.maxDevices) {
-        throw new ApiError("FORBIDDEN", "Maximum devices reached", 403);
-      }
-    }
-
-    // Generate tokens
+    // Generate token
     const accessToken = await signJWT({
       sub: user.id,
       username: user.username,
@@ -67,15 +58,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<UserAuthR
       role: "user"
     });
 
-    // Create refresh token with device info
-    const refreshToken = await refreshTokenRepository.create({
-      userId: user.id,
-      deviceId: deviceId || "unknown",
-      deviceInfo: request.headers.get("user-agent") || undefined,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-    });
-
-    // Update last login
+    // Update last login and device ID
     await userRepository.update(user.id, {
       lastLogin: new Date(),
       deviceId: deviceId || undefined
@@ -87,7 +70,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<UserAuthR
       message: "Login successful",
       data: {
         accessToken,
-        refreshToken: refreshToken.token,
         user: {
           id: user.id,
           username: user.username,

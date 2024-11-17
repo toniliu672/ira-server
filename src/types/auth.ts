@@ -27,7 +27,6 @@ export interface AdminAuthResponse extends BaseAuthResponse {
 export interface UserAuthResponse extends BaseAuthResponse {
   data?: {
     accessToken: string;
-    refreshToken: string;
     user: {
       id: string;
       username: string;
@@ -47,11 +46,10 @@ export interface ApiError {
   status: number;
 }
 
+// Removed exp and iat as we no longer use token expiry
 export interface JWTPayload {
   sub: string;
   username: string;
   email: string;
   role: 'admin' | 'user';
-  iat?: number;
-  exp?: number;
 }

@@ -42,24 +42,10 @@ model Student {
   lastLogin      DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
-  refreshTokens  RefreshToken[]
 
   @@map("students")
 }
 
-model RefreshToken {
-  id        String    @id @default(uuid()) @map("_id")
-  token     String    @unique
-  deviceId  String?   // Link to specific device
-  studentId String
-  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  expires   DateTime
-  createdAt DateTime  @default(now())
-  revokedAt DateTime?
-
-  @@index([studentId])
-  @@map("refresh_tokens")
-}
 
 model Materi {
   id                    String      @id @default(uuid()) @map("_id")
