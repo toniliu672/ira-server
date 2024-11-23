@@ -8,9 +8,15 @@ import { getMateriById, updateMateri, deleteMateri } from "@/services/materiServ
 import { ApiError } from "@/lib/errors";
 import { materiSchema } from "@/types/materi";
 
+interface RouteContext {
+  params: {
+    materiId: string;
+  };
+}
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: { materiId: string } }
+  context: RouteContext
 ) {
   try {
     const cookieStore = await cookies();
@@ -22,7 +28,7 @@ export async function GET(
 
     await verifyJWT(token);
 
-    const materi = await getMateriById(params.materiId);
+    const materi = await getMateriById(context.params.materiId);
 
     return NextResponse.json({
       success: true,
@@ -44,7 +50,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { materiId: string } }
+  context: RouteContext
 ) {
   try {
     const cookieStore = await cookies();
@@ -67,7 +73,7 @@ export async function PATCH(
     const body = await request.json();
     const validatedData = materiSchema.partial().parse(body);
     
-    const materi = await updateMateri(params.materiId, validatedData);
+    const materi = await updateMateri(context.params.materiId, validatedData);
 
     return NextResponse.json({
       success: true,
@@ -96,7 +102,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { materiId: string } }
+  context: RouteContext
 ) {
   try {
     const cookieStore = await cookies();
@@ -116,7 +122,7 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
-    await deleteMateri(params.materiId);
+    await deleteMateri(context.params.materiId);
 
     return NextResponse.json({
       success: true,
