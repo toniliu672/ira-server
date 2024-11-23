@@ -4,18 +4,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { verifyJWT } from "@/lib/auth";
-import {
-  getSubMateriById,
-  updateSubMateri,
+import { 
+  getSubMateriById, 
+  updateSubMateri, 
   deleteSubMateri,
-  reorderSubMateri,
+  reorderSubMateri 
 } from "@/services/subMateriService";
 import { ApiError } from "@/lib/errors";
 import { subMateriSchema } from "@/types/materi";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { materiId: string; subId: string } }
+  { params }: { params: Promise<{ materiId: string; subId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -27,16 +27,17 @@ export async function GET(
 
     await verifyJWT(token);
 
-    const subMateri = await getSubMateriById(params.subId);
+    const { materiId, subId } = await params;
+    const subMateri = await getSubMateriById(subId);
 
     // Validate that subMateri belongs to the specified materi
-    if (subMateri.materiId !== params.materiId) {
+    if (subMateri.materiId !== materiId) {
       throw new ApiError("NOT_FOUND", "Sub materi tidak ditemukan", 404);
     }
 
     return NextResponse.json({
       success: true,
-      data: subMateri,
+      data: subMateri
     });
   } catch (e) {
     if (e instanceof ApiError) {
@@ -54,7 +55,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { materiId: string; subId: string } }
+  { params }: { params: Promise<{ materiId: string; subId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -74,30 +75,30 @@ export async function PATCH(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
+    const { materiId, subId } = await params;
     const body = await request.json();
 
     // Check if this is a reorder operation
     if (body.orderedIds) {
-      await reorderSubMateri(params.materiId, body.orderedIds);
+      await reorderSubMateri(materiId, body.orderedIds);
       return NextResponse.json({
         success: true,
-        message: "Urutan sub materi berhasil diupdate",
+        message: "Urutan sub materi berhasil diupdate"
       });
     }
 
-    const validatedData = subMateriSchema.partial().parse(body);
-
-    const subMateri = await updateSubMateri(params.subId, validatedData);
-
-    // Validate that subMateri belongs to the specified materi
-    if (subMateri.materiId !== params.materiId) {
+    const subMateri = await getSubMateriById(subId);
+    if (subMateri.materiId !== materiId) {
       throw new ApiError("NOT_FOUND", "Sub materi tidak ditemukan", 404);
     }
 
+    const validatedData = subMateriSchema.partial().parse(body);
+    const updatedSubMateri = await updateSubMateri(subId, validatedData);
+
     return NextResponse.json({
       success: true,
-      data: subMateri,
-      message: "Sub materi berhasil diupdate",
+      data: updatedSubMateri,
+      message: "Sub materi berhasil diupdate"
     });
   } catch (e) {
     if (e instanceof z.ZodError) {
@@ -121,7 +122,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { materiId: string; subId: string } }
+  { params }: { params: Promise<{ materiId: string; subId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -141,18 +142,19 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
-    const subMateri = await getSubMateriById(params.subId);
+    const { materiId, subId } = await params;
+    const subMateri = await getSubMateriById(subId);
 
     // Validate that subMateri belongs to the specified materi
-    if (subMateri.materiId !== params.materiId) {
+    if (subMateri.materiId !== materiId) {
       throw new ApiError("NOT_FOUND", "Sub materi tidak ditemukan", 404);
     }
 
-    await deleteSubMateri(params.subId);
+    await deleteSubMateri(subId);
 
     return NextResponse.json({
       success: true,
-      message: "Sub materi berhasil dihapus",
+      message: "Sub materi berhasil dihapus"
     });
   } catch (e) {
     if (e instanceof ApiError) {

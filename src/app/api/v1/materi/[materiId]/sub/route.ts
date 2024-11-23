@@ -10,7 +10,7 @@ import { subMateriSchema } from "@/types/materi";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { materiId: string } }
+  { params }: { params: Promise<{ materiId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -22,12 +22,13 @@ export async function GET(
 
     await verifyJWT(token);
 
+    const { materiId } = await params;
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") !== "false";
 
     const subMateri = await getSubMateriByMateriId({
-      materiId: params.materiId,
+      materiId,
       search,
       status
     });
@@ -52,7 +53,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { materiId: string } }
+  { params }: { params: Promise<{ materiId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -72,16 +73,17 @@ export async function POST(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
+    const { materiId } = await params;
     const body = await request.json();
     const validatedData = subMateriSchema.parse({
       ...body,
-      materiId: params.materiId
+      materiId
     });
 
     const subMateri = await createSubMateri({
       ...validatedData,
       materiRef: {
-        connect: { id: params.materiId }
+        connect: { id: materiId }
       }
     });
 

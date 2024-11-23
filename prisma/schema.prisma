@@ -47,29 +47,29 @@ model Student {
 }
 
 model Materi {
-  id                   String        @id @default(auto()) @map("_id") @db.ObjectId
+  id                   String        @id @default(uuid()) @map("_id")
   judul                String        @unique
-  tujuanPembelajaran   String[]     
-  capaianPembelajaran  String[]     
-  deskripsi            String?      
-  thumbnailUrl         String?      
-  urutan               Int          
+  tujuanPembelajaran   String[]     // Array tujuan pembelajaran
+  capaianPembelajaran  String[]     // Array capaian pembelajaran 
+  deskripsi            String?      // Optional deskripsi singkat
+  thumbnailUrl         String?      // URL thumbnail (max 5MB)
+  urutan               Int          // Urutan materi
   status               Boolean      @default(true)
-  subMateri            SubMateri[]  
-  videoMateri          VideoMateri[] 
+  subMateri            SubMateri[]  // One-to-many ke SubMateri
+  videoMateri          VideoMateri[] // One-to-many ke VideoMateri
 
   @@map("materi")
   @@index([judul, status])
 }
 
 model SubMateri {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id          String   @id @default(uuid()) @map("_id")
   judul       String   
-  konten      String   
-  imageUrls   String[] 
-  urutan      Int      
+  konten      String   // Rich text content
+  imageUrls   String[] // Array URL gambar (max 5MB per gambar)
+  urutan      Int      // Urutan dalam materi
   status      Boolean  @default(true)
-  materiId    String   @db.ObjectId
+  materiId    String   // Foreign key ke materi
   materiRef   Materi   @relation(fields: [materiId], references: [id], onDelete: Cascade)
 
   @@map("sub_materi")
@@ -77,15 +77,15 @@ model SubMateri {
 }
 
 model VideoMateri {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id          String   @id @default(uuid()) @map("_id")
   judul       String
   deskripsi   String?
-  videoUrl    String   
-  thumbnailUrl String? 
-  durasi      Int     
-  urutan      Int     
+  videoUrl    String   // URL video dari ImageKit (max 100MB)
+  thumbnailUrl String? // URL thumbnail untuk video (max 5MB)
+  durasi      Int     // Durasi dalam menit
+  urutan      Int     // Urutan dalam materi
   status      Boolean @default(true)
-  materiId    String  @db.ObjectId
+  materiId    String  // Foreign key ke materi
   materiRef   Materi  @relation(fields: [materiId], references: [id], onDelete: Cascade)
 
   @@map("video_materi")

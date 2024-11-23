@@ -15,7 +15,7 @@ import { videoMateriSchema } from "@/types/materi";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { materiId: string; videoId: string } }
+  { params }: { params: Promise<{ materiId: string; videoId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -27,10 +27,11 @@ export async function GET(
 
     await verifyJWT(token);
 
-    const videoMateri = await getVideoMateriById(params.videoId);
+    const { materiId, videoId } = await params;
+    const videoMateri = await getVideoMateriById(videoId);
 
     // Validate that videoMateri belongs to the specified materi
-    if (videoMateri.materiId !== params.materiId) {
+    if (videoMateri.materiId !== materiId) {
       throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
     }
 
@@ -54,7 +55,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { materiId: string; videoId: string } }
+  { params }: { params: Promise<{ materiId: string; videoId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -74,12 +75,14 @@ export async function PATCH(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
+    const { materiId, videoId } = await params;
+
     // Check if this is a reorder operation
     const contentType = request.headers.get("content-type");
     if (contentType?.includes("application/json")) {
       const body = await request.json();
       if (body.orderedIds) {
-        await reorderVideoMateri(params.materiId, body.orderedIds);
+        await reorderVideoMateri(materiId, body.orderedIds);
         return NextResponse.json({
           success: true,
           message: "Urutan video materi berhasil diupdate",
@@ -87,10 +90,7 @@ export async function PATCH(
       }
 
       const validatedData = videoMateriSchema.partial().parse(body);
-      const videoMateri = await updateVideoMateri(
-        params.videoId,
-        validatedData
-      );
+      const videoMateri = await updateVideoMateri(videoId, validatedData);
 
       return NextResponse.json({
         success: true,
@@ -108,7 +108,7 @@ export async function PATCH(
     const validatedData = videoMateriSchema.partial().parse(data);
 
     const videoMateri = await updateVideoMateri(
-      params.videoId,
+      videoId,
       validatedData,
       videoFile || undefined,
       thumbnailFile || undefined
@@ -141,7 +141,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { materiId: string; videoId: string } }
+  { params }: { params: Promise<{ materiId: string; videoId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -161,14 +161,15 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
-    const videoMateri = await getVideoMateriById(params.videoId);
+    const { materiId, videoId } = await params;
+    const videoMateri = await getVideoMateriById(videoId);
 
     // Validate that videoMateri belongs to the specified materi
-    if (videoMateri.materiId !== params.materiId) {
+    if (videoMateri.materiId !== materiId) {
       throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
     }
 
-    await deleteVideoMateri(params.videoId);
+    await deleteVideoMateri(videoId);
 
     return NextResponse.json({
       success: true,
