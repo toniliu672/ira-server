@@ -4,21 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { verifyJWT } from "@/lib/auth";
-import {
-  getMateriById,
-  updateMateri,
-  deleteMateri,
-} from "@/services/materiService";
+import { getMateriById, updateMateri, deleteMateri } from "@/services/materiService";
 import { ApiError } from "@/lib/errors";
 import { materiSchema } from "@/types/materi";
 
-interface RouteContext {
-  params: {
-    materiId: string;
-  };
-}
-
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { materiId: string } }
+) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("admin-token")?.value;
@@ -29,11 +22,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     await verifyJWT(token);
 
-    const materi = await getMateriById(context.params.materiId);
+    const materi = await getMateriById(params.materiId);
 
     return NextResponse.json({
       success: true,
-      data: materi,
+      data: materi
     });
   } catch (e) {
     if (e instanceof ApiError) {
@@ -49,7 +42,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 }
 
-export async function PATCH(request: NextRequest, context: RouteContext) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { materiId: string } }
+) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("admin-token")?.value;
@@ -70,13 +66,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     const body = await request.json();
     const validatedData = materiSchema.partial().parse(body);
-
-    const materi = await updateMateri(context.params.materiId, validatedData);
+    
+    const materi = await updateMateri(params.materiId, validatedData);
 
     return NextResponse.json({
       success: true,
       data: materi,
-      message: "Materi berhasil diupdate",
+      message: "Materi berhasil diupdate"
     });
   } catch (e) {
     if (e instanceof z.ZodError) {
@@ -98,7 +94,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 }
 
-export async function DELETE(request: NextRequest, context: RouteContext) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { materiId: string } }
+) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("admin-token")?.value;
@@ -117,11 +116,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
-    await deleteMateri(context.params.materiId);
+    await deleteMateri(params.materiId);
 
     return NextResponse.json({
       success: true,
-      message: "Materi berhasil dihapus",
+      message: "Materi berhasil dihapus"
     });
   } catch (e) {
     if (e instanceof ApiError) {
