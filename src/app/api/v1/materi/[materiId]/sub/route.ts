@@ -7,6 +7,9 @@ import { verifyJWT } from "@/lib/auth";
 import { getSubMateriByMateriId, createSubMateri } from "@/services/subMateriService";
 import { ApiError } from "@/lib/errors";
 import { subMateriSchema } from "@/types/materi";
+import { revalidateTag } from "next/cache";
+
+const CACHE_TAG = 'submateri';
 
 export async function GET(
   request: NextRequest,
@@ -75,36 +78,54 @@ export async function POST(
 
     const { materiId } = await params;
     const body = await request.json();
-    const validatedData = subMateriSchema.parse({
-      ...body,
-      materiId
-    });
 
-    const subMateri = await createSubMateri({
-      ...validatedData,
-      materiRef: {
-        connect: { id: materiId }
+    console.log("Received payload:", body);
+
+    // Prepare data for validation
+    const inputData = {
+      ...body,
+      materiId,
+      imageUrls: body.imageUrls || [], // Ensure imageUrls exists
+      status: body.status ?? true       // Default status to true if not provided
+    };
+
+    try {
+      // Validate with Zod schema
+      subMateriSchema.parse(inputData);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw new ApiError(
+          "VALIDATION_ERROR",
+          "Data tidak valid: " + error.errors.map(e => e.message).join(", "),
+          400
+        );
       }
-    });
+      throw error;
+    }
+
+    // Create sub materi
+    const subMateri = await createSubMateri(inputData);
+
+    // Revalidate cache
+    revalidateTag(CACHE_TAG);
+    revalidateTag(`materi-${materiId}`);
 
     return NextResponse.json({
       success: true,
       data: subMateri,
       message: "Sub materi berhasil dibuat"
     }, { status: 201 });
+    
   } catch (e) {
-    if (e instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: "Validation error", details: e.errors },
-        { status: 400 }
-      );
-    }
+    console.error("Create SubMateri Error:", e);
+
     if (e instanceof ApiError) {
       return NextResponse.json(
         { success: false, error: e.message },
         { status: e.status }
       );
     }
+
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

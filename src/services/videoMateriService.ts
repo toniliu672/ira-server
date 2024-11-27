@@ -2,11 +2,12 @@
 
 import { cache } from "react";
 import { videoMateriRepository } from "@/repositories/videoMateriRepository";
-import type { Prisma } from "@prisma/client";
 import { ApiError } from "@/lib/errors";
 import { validateFile } from "@/utils/upload";
 import type { UploadResult } from "@/types/upload";
 import ImageKit from "imagekit";
+import { Prisma } from "@prisma/client";
+import { deleteImageKitFile, getFileIdFromUrl } from "@/utils/imagekit";
 
 const imageKit = new ImageKit({
   publicKey: process.env.NEXT_PUBLIC_PUBLIC_KEY!,
@@ -55,87 +56,82 @@ export const getVideoMateriById = cache(async (id: string) => {
 });
 
 export const uploadVideo = async (file: File): Promise<UploadResult> => {
-    try {
-      // Validate video file
-      const validationError = await validateFile(file, 'video');
-      if (validationError) {
-        return {
-          success: false,
-          error: validationError
-        };
-      }
-  
-      // Upload to ImageKit
-      const buffer = await file.arrayBuffer();
-      const response = await imageKit.upload({
-        file: Buffer.from(buffer),
-        fileName: file.name,
-        folder: "/materi/videos"
-      });
-  
-      return {
-        success: true,
-        url: response.url
-      };
-    } catch (e) {
-      console.error("Upload Video Error:", e);
+  try {
+    const validationError = await validateFile(file, "video");
+    if (validationError) {
       return {
         success: false,
-        error: {
-          code: "INVALID_FILE_TYPE", // Changed from "UPLOAD_FAILED"
-          message: "Gagal mengupload video. Format file tidak didukung."
-        }
+        error: validationError,
       };
     }
-  };
-  
-  export const uploadThumbnail = async (file: File): Promise<UploadResult> => {
-    try {
-      // Validate image file
-      const validationError = await validateFile(file, 'image');
-      if (validationError) {
-        return {
-          success: false,
-          error: validationError
-        };
-      }
-  
-      // Upload to ImageKit
-      const buffer = await file.arrayBuffer();
-      const response = await imageKit.upload({
-        file: Buffer.from(buffer),
-        fileName: file.name,
-        folder: "/materi/thumbnails"
-      });
-  
-      return {
-        success: true,
-        url: response.url
-      };
-    } catch (e) {
-      console.error("Upload Thumbnail Error:", e);
+
+    const buffer = await file.arrayBuffer();
+    const response = await imageKit.upload({
+      file: Buffer.from(buffer),
+      fileName: file.name,
+      folder: "/materi/videos",
+    });
+
+    return {
+      success: true,
+      url: response.url,
+    };
+  } catch (e) {
+    console.error("Upload Video Error:", e);
+    return {
+      success: false,
+      error: {
+        code: "INVALID_FILE_TYPE",
+        message: "Gagal mengupload video. Format file tidak didukung.",
+      },
+    };
+  }
+};
+
+export const uploadThumbnail = async (file: File): Promise<UploadResult> => {
+  try {
+    const validationError = await validateFile(file, "image");
+    if (validationError) {
       return {
         success: false,
-        error: {
-          code: "INVALID_FILE_TYPE", // Changed from "UPLOAD_FAILED"
-          message: "Gagal mengupload thumbnail. Format file tidak didukung."
-        }
+        error: validationError,
       };
     }
-  };
+
+    const buffer = await file.arrayBuffer();
+    const response = await imageKit.upload({
+      file: Buffer.from(buffer),
+      fileName: file.name,
+      folder: "/materi/thumbnails",
+    });
+
+    return {
+      success: true,
+      url: response.url,
+    };
+  } catch (e) {
+    console.error("Upload Thumbnail Error:", e);
+    return {
+      success: false,
+      error: {
+        code: "INVALID_FILE_TYPE",
+        message: "Gagal mengupload thumbnail. Format file tidak didukung.",
+      },
+    };
+  }
+};
+
 export const createVideoMateri = async (
-  data: Prisma.VideoMateriCreateInput,
+  input: Prisma.VideoMateriCreateInput,
   videoFile: File,
   thumbnailFile?: File
 ) => {
   try {
-    // Ensure materiId exists and is string
-    const materiId = data.materiRef.connect?.id;
+    const materiId = input.materiRef.connect?.id;
     if (!materiId) {
       throw new ApiError("VALIDATION_ERROR", "MateriId is required", 400);
     }
 
-    // Upload video
     const videoResult = await uploadVideo(videoFile);
     if (!videoResult.success || !videoResult.url) {
       throw new ApiError(
@@ -145,7 +141,6 @@ export const createVideoMateri = async (
       );
     }
 
-    // Upload thumbnail if provided
     let thumbnailUrl: string | undefined;
     if (thumbnailFile) {
       const thumbnailResult = await uploadThumbnail(thumbnailFile);
@@ -159,21 +154,18 @@ export const createVideoMateri = async (
       thumbnailUrl = thumbnailResult.url;
     }
 
-    // Get last video urutan
     const lastVideos = await videoMateriRepository.findByMateriId({
       materiId,
       status: true,
     });
 
-    // Set urutan to last + 1 or 1 if no videos exist
     const urutan =
       lastVideos.length > 0
         ? Math.max(...lastVideos.map((v) => v.urutan)) + 1
         : 1;
 
-    // Create video materi record
     return await videoMateriRepository.create({
-      ...data,
+      ...input,
       videoUrl: videoResult.url,
       thumbnailUrl,
       urutan,
@@ -192,9 +184,15 @@ export const updateVideoMateri = async (
   thumbnailFile?: File
 ) => {
   try {
-    const updateData: Prisma.VideoMateriUpdateInput = { ...data }; // Changed let to const
+    // Get current data
+    const currentVideo = await videoMateriRepository.findById(id);
+    if (!currentVideo) {
+      throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
+    }
 
-    // Upload new video if provided
+    const updateData: Prisma.VideoMateriUpdateInput = { ...data };
+
+    // Handle video upload and deletion
     if (videoFile) {
       const videoResult = await uploadVideo(videoFile);
       if (!videoResult.success || !videoResult.url) {
@@ -204,10 +202,19 @@ export const updateVideoMateri = async (
           500
         );
       }
+      
+      // Delete old video if exists
+      if (currentVideo.videoUrl) {
+        const oldVideoFileId = getFileIdFromUrl(currentVideo.videoUrl);
+        if (oldVideoFileId) {
+          await deleteImageKitFile(oldVideoFileId);
+        }
+      }
+      
       updateData.videoUrl = videoResult.url;
     }
 
-    // Upload new thumbnail if provided
+    // Handle thumbnail upload and deletion
     if (thumbnailFile) {
       const thumbnailResult = await uploadThumbnail(thumbnailFile);
       if (!thumbnailResult.success || !thumbnailResult.url) {
@@ -217,6 +224,15 @@ export const updateVideoMateri = async (
           500
         );
       }
+
+      // Delete old thumbnail if exists
+      if (currentVideo.thumbnailUrl) {
+        const oldThumbnailFileId = getFileIdFromUrl(currentVideo.thumbnailUrl);
+        if (oldThumbnailFileId) {
+          await deleteImageKitFile(oldThumbnailFileId);
+        }
+      }
+
       updateData.thumbnailUrl = thumbnailResult.url;
     }
 
@@ -230,6 +246,28 @@ export const updateVideoMateri = async (
 
 export const deleteVideoMateri = async (id: string) => {
   try {
+    // Get video details first
+    const videoMateri = await videoMateriRepository.findById(id);
+    if (!videoMateri) {
+      throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
+    }
+
+    // Delete media files from ImageKit
+    if (videoMateri.videoUrl) {
+      const videoFileId = getFileIdFromUrl(videoMateri.videoUrl);
+      if (videoFileId) {
+        await deleteImageKitFile(videoFileId);
+      }
+    }
+
+    if (videoMateri.thumbnailUrl) {
+      const thumbnailFileId = getFileIdFromUrl(videoMateri.thumbnailUrl);
+      if (thumbnailFileId) {
+        await deleteImageKitFile(thumbnailFileId);
+      }
+    }
+
+    // Delete database record
     await videoMateriRepository.delete(id);
   } catch (e) {
     if (e instanceof ApiError) throw e;

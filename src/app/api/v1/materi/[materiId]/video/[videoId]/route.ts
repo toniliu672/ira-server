@@ -2,20 +2,18 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { z } from "zod";
 import { verifyJWT } from "@/lib/auth";
-import {
-  getVideoMateriById,
+import { 
   updateVideoMateri,
-  deleteVideoMateri,
-  reorderVideoMateri,
+  deleteVideoMateri, 
+  getVideoMateriById
 } from "@/services/videoMateriService";
 import { ApiError } from "@/lib/errors";
-import { videoMateriSchema } from "@/types/materi";
+import { videoMateriInputSchema } from "@/types/materi";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ materiId: string; videoId: string }> }
+  { params }: { params: { materiId: string; videoId: string } }
 ) {
   try {
     const cookieStore = await cookies();
@@ -27,17 +25,16 @@ export async function GET(
 
     await verifyJWT(token);
 
-    const { materiId, videoId } = await params;
-    const videoMateri = await getVideoMateriById(videoId);
+    const videoMateri = await getVideoMateriById(params.videoId);
 
     // Validate that videoMateri belongs to the specified materi
-    if (videoMateri.materiId !== materiId) {
+    if (videoMateri.materiId !== params.materiId) {
       throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
     }
 
     return NextResponse.json({
       success: true,
-      data: videoMateri,
+      data: videoMateri
     });
   } catch (e) {
     if (e instanceof ApiError) {
@@ -55,7 +52,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ materiId: string; videoId: string }> }
+  { params }: { params: { materiId: string; videoId: string } }
 ) {
   try {
     const cookieStore = await cookies();
@@ -75,41 +72,25 @@ export async function PATCH(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
-    const { materiId, videoId } = await params;
-
-    // Check if this is a reorder operation
-    const contentType = request.headers.get("content-type");
-    if (contentType?.includes("application/json")) {
-      const body = await request.json();
-      if (body.orderedIds) {
-        await reorderVideoMateri(materiId, body.orderedIds);
-        return NextResponse.json({
-          success: true,
-          message: "Urutan video materi berhasil diupdate",
-        });
-      }
-
-      const validatedData = videoMateriSchema.partial().parse(body);
-      const videoMateri = await updateVideoMateri(videoId, validatedData);
-
-      return NextResponse.json({
-        success: true,
-        data: videoMateri,
-        message: "Video materi berhasil diupdate",
-      });
-    }
-
-    // Handle multipart form-data for file uploads
     const formData = await request.formData();
     const videoFile = formData.get("video") as File | null;
     const thumbnailFile = formData.get("thumbnail") as File | null;
-    const data = JSON.parse(formData.get("data") as string);
+    const dataStr = formData.get("data") as string;
 
-    const validatedData = videoMateriSchema.partial().parse(data);
+    const data = JSON.parse(dataStr);
+    const validatedData = videoMateriInputSchema.partial().parse({
+      ...data,
+      materiId: params.materiId,
+    });
 
+    // Update video materi
     const videoMateri = await updateVideoMateri(
-      videoId,
-      validatedData,
+      params.videoId,
+      {
+        judul: validatedData.judul,
+        deskripsi: validatedData.deskripsi,
+        durasi: validatedData.durasi,
+      },
       videoFile || undefined,
       thumbnailFile || undefined
     );
@@ -117,15 +98,9 @@ export async function PATCH(
     return NextResponse.json({
       success: true,
       data: videoMateri,
-      message: "Video materi berhasil diupdate",
+      message: "Video materi berhasil diupdate"
     });
   } catch (e) {
-    if (e instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: "Validation error", details: e.errors },
-        { status: 400 }
-      );
-    }
     if (e instanceof ApiError) {
       return NextResponse.json(
         { success: false, error: e.message },
@@ -141,7 +116,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ materiId: string; videoId: string }> }
+  { params }: { params: { materiId: string; videoId: string } }
 ) {
   try {
     const cookieStore = await cookies();
@@ -161,19 +136,18 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
-    const { materiId, videoId } = await params;
-    const videoMateri = await getVideoMateriById(videoId);
-
-    // Validate that videoMateri belongs to the specified materi
-    if (videoMateri.materiId !== materiId) {
+    // Check if video exists and belongs to the materi
+    const videoMateri = await getVideoMateriById(params.videoId);
+    if (!videoMateri || videoMateri.materiId !== params.materiId) {
       throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
     }
 
-    await deleteVideoMateri(videoId);
+    // Delete video materi and its media files
+    await deleteVideoMateri(params.videoId);
 
     return NextResponse.json({
       success: true,
-      message: "Video materi berhasil dihapus",
+      message: "Video materi berhasil dihapus"
     });
   } catch (e) {
     if (e instanceof ApiError) {
@@ -182,8 +156,9 @@ export async function DELETE(
         { status: e.status }
       );
     }
+    console.error("Delete video materi error:", e);
     return NextResponse.json(
-      { success: false, error: "Internal server error" },
+      { success: false, error: e instanceof Error ? e.message : "Internal server error" },
       { status: 500 }
     );
   }
