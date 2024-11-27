@@ -38,8 +38,12 @@ model Student {
   phone          String?
   address        String?
   activeStatus   Boolean        @default(true)
-  deviceId       String?        // For mobile app authentication
+  deviceId       String?        
   lastLogin      DateTime?
+  jawabanPg      JawabanPg[]    
+  jawabanEssay   JawabanEssay[] 
+  nilaiPg        Float?         
+  nilaiEssay     Float?         
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -55,8 +59,9 @@ model Materi {
   thumbnailUrl         String?      // URL thumbnail (max 5MB)
   urutan               Int          // Urutan materi
   status               Boolean      @default(true)
-  subMateri            SubMateri[]  // One-to-many ke SubMateri
-  videoMateri          VideoMateri[] // One-to-many ke VideoMateri
+  subMateri            SubMateri[]  
+  videoMateri          VideoMateri[] 
+  quiz                 Quiz[]        // Add this relation
 
   @@map("materi")
   @@index([judul, status])
@@ -65,11 +70,11 @@ model Materi {
 model SubMateri {
   id          String   @id @default(uuid()) @map("_id")
   judul       String   
-  konten      String   // Rich text content
-  imageUrls   String[] // Array URL gambar (max 5MB per gambar)
-  urutan      Int      // Urutan dalam materi
+  konten      String   
+  imageUrls   String[] 
+  urutan      Int      
   status      Boolean  @default(true)
-  materiId    String   // Foreign key ke materi
+  materiId    String   
   materiRef   Materi   @relation(fields: [materiId], references: [id], onDelete: Cascade)
 
   @@map("sub_materi")
@@ -85,9 +90,83 @@ model VideoMateri {
   durasi      Int     // Durasi dalam menit
   urutan      Int     // Urutan dalam materi
   status      Boolean @default(true)
-  materiId    String  // Foreign key ke materi
+  materiId    String  
   materiRef   Materi  @relation(fields: [materiId], references: [id], onDelete: Cascade)
 
   @@map("video_materi")
   @@index([materiId, status])
+}
+
+enum QuizType {
+  MULTIPLE_CHOICE
+  ESSAY
+}
+
+model Quiz {
+  id          String       @id @default(uuid()) @map("_id")
+  materiId    String      
+  judul       String
+  deskripsi   String?
+  type        QuizType    
+  status      Boolean     @default(true)
+  soalPg      SoalPg[]    
+  soalEssay   SoalEssay[] 
+  materiRef   Materi      @relation(fields: [materiId], references: [id], onDelete: Cascade)
+
+  @@map("quiz")
+  @@index([materiId, status])
+}
+
+model SoalPg {
+  id          String      @id @default(uuid()) @map("_id")
+  quizId      String      
+  quizRef     Quiz        @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  pertanyaan  String      
+  opsiJawaban String[]    
+  kunciJawaban Int        
+  status      Boolean     @default(true)
+  jawabanPg   JawabanPg[] 
+
+  @@map("soal_pg")
+  @@index([quizId, status])
+}
+
+model SoalEssay {
+  id           String        @id @default(uuid()) @map("_id")
+  quizId       String       
+  quizRef      Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  pertanyaan   String       
+  status       Boolean      @default(true)
+  jawabanEssay JawabanEssay[] 
+
+  @@map("soal_essay")
+  @@index([quizId, status])
+}
+
+model JawabanPg {
+  id          String    @id @default(uuid()) @map("_id")
+  studentId   String    
+  soalId      String    
+  jawaban     Int       
+  isCorrect   Boolean   
+  nilai       Float     
+  studentRef  Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  soalRef     SoalPg    @relation(fields: [soalId], references: [id], onDelete: Cascade)
+
+  @@map("jawaban_pg")
+  @@unique([studentId, soalId])  // This will automatically create an index
+}
+
+model JawabanEssay {
+  id          String     @id @default(uuid()) @map("_id")
+  studentId   String    
+  soalId      String    
+  jawaban     String    
+  nilai       Float?    
+  feedback    String?   
+  studentRef  Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  soalRef     SoalEssay  @relation(fields: [soalId], references: [id], onDelete: Cascade)
+
+  @@map("jawaban_essay")
+  @@unique([studentId, soalId])  // This will automatically create an index
 }
