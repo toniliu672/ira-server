@@ -1,7 +1,7 @@
 // src/repositories/quizRepository.ts
 
 import prisma from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { ApiError } from "@/lib/errors";
 import type { QuizFilters } from "@/types/quiz";
 
@@ -13,17 +13,16 @@ export class QuizRepository {
         include: {
           soalPg: {
             where: { status: true },
-            orderBy: { id: 'asc' }
+            orderBy: { id: "asc" },
           },
           soalEssay: {
             where: { status: true },
-            orderBy: { id: 'asc' }
-          }
-        }
+            orderBy: { id: "asc" },
+          },
+        },
       });
     } catch (e) {
-      const error = e as Error;
-      console.error("Repository Find Quiz By ID Error:", error.message);
+      console.error("Repository Find Quiz By ID Error:", e);
       throw new ApiError("FETCH_FAILED", "Gagal mengambil data quiz", 500);
     }
   }
@@ -31,13 +30,13 @@ export class QuizRepository {
   async findMany(filters: QuizFilters) {
     const {
       search = "",
-      materiId,
       type,
-      status = true,
+      materiId,
       page = 1,
       limit = 10,
       sortBy = "judul",
-      sortOrder = "asc"
+      sortOrder = "asc",
+      status = true,
     } = filters;
 
     try {
@@ -45,13 +44,16 @@ export class QuizRepository {
         AND: [
           search
             ? {
-                judul: { contains: search, mode: "insensitive" }
+                OR: [
+                  { judul: { contains: search, mode: "insensitive" } },
+                  { deskripsi: { contains: search, mode: "insensitive" } },
+                ],
               }
             : {},
-          materiId ? { materiId } : {},
           type ? { type } : {},
-          { status }
-        ]
+          materiId ? { materiId } : {},
+          { status },
+        ],
       };
 
       const [quizzes, total] = await prisma.$transaction([
@@ -61,21 +63,20 @@ export class QuizRepository {
             _count: {
               select: {
                 soalPg: true,
-                soalEssay: true
-              }
-            }
+                soalEssay: true,
+              },
+            },
           },
           orderBy: { [sortBy]: sortOrder },
           skip: (page - 1) * limit,
-          take: limit
+          take: limit,
         }),
-        prisma.quiz.count({ where })
+        prisma.quiz.count({ where }),
       ]);
 
       return { quizzes, total };
     } catch (e) {
-      const error = e as Error;
-      console.error("Repository Find Many Quiz Error:", error.message);
+      console.error("Repository Find Many Quizzes Error:", e);
       throw new ApiError("FETCH_FAILED", "Gagal mengambil data quiz", 500);
     }
   }
@@ -86,12 +87,11 @@ export class QuizRepository {
         data,
         include: {
           soalPg: true,
-          soalEssay: true
-        }
+          soalEssay: true,
+        },
       });
     } catch (e) {
-      const error = e as Error;
-      console.error("Repository Create Quiz Error:", error.message);
+      console.error("Repository Create Quiz Error:", e);
       throw new ApiError("CREATE_FAILED", "Gagal membuat quiz", 500);
     }
   }
@@ -103,54 +103,56 @@ export class QuizRepository {
         data,
         include: {
           soalPg: true,
-          soalEssay: true
-        }
+          soalEssay: true,
+        },
       });
     } catch (e) {
-      const error = e as Error;
-      console.error("Repository Update Quiz Error:", error.message);
-      
-      if (error.message.includes("Record to update not found")) {
-        throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+      console.error("Repository Update Quiz Error:", e);
+
+      if (e instanceof Prisma.PrismaClientKnownRequestError) {
+        if (e.code === "P2025") {
+          throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+        }
       }
-      
+
       throw new ApiError("UPDATE_FAILED", "Gagal mengupdate quiz", 500);
     }
   }
 
   async delete(id: string) {
     try {
-      await prisma.quiz.delete({ where: { id } });
+      await prisma.quiz.delete({
+        where: { id },
+      });
     } catch (e) {
-      const error = e as Error;
-      console.error("Repository Delete Quiz Error:", error.message);
-      
-      if (error.message.includes("Record to delete does not exist")) {
-        throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+      console.error("Repository Delete Quiz Error:", e);
+
+      if (e instanceof Prisma.PrismaClientKnownRequestError) {
+        if (e.code === "P2025") {
+          throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+        }
       }
-      
+
       throw new ApiError("DELETE_FAILED", "Gagal menghapus quiz", 500);
     }
   }
 
-  async getRandomSoalPg(quizId: string, count: number) {
+  async getStats() {
     try {
-      return await prisma.soalPg.findMany({
-        where: {
-          quizId,
-          status: true
-        },
-        take: count,
-        orderBy: {
-          id: 'asc'
-        }
-      });
+      const [total, multipleChoice, essay, active] = await prisma.$transaction([
+        prisma.quiz.count(),
+        prisma.quiz.count({ where: { type: "MULTIPLE_CHOICE" } }),
+        prisma.quiz.count({ where: { type: "ESSAY" } }),
+        prisma.quiz.count({ where: { status: true } }),
+      ]);
+
+      return { total, multipleChoice, essay, active };
     } catch (e) {
-      const error = e as Error;
-      console.error("Repository Get Random Soal PG Error:", error.message);
-      throw new ApiError("FETCH_FAILED", "Gagal mengambil soal quiz", 500);
+      console.error("Repository Get Quiz Stats Error:", e);
+      throw new ApiError("FETCH_FAILED", "Gagal mengambil statistik quiz", 500);
     }
   }
 }
 
+// Singleton instance
 export const quizRepository = new QuizRepository();

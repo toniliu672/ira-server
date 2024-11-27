@@ -1,13 +1,9 @@
 // src/services/quizService.ts
 
 import { cache } from "react";
-import type {
-  Quiz,
-  QuizFilters,
-} from "@/types/quiz";
+import type { Quiz, QuizFilters, QuizStats } from "@/types/quiz";
 import { quizRepository } from "@/repositories/quizRepository";
 import { ApiError } from "@/lib/errors";
-import type { Prisma } from "@prisma/client";
 
 export const getQuizzes = cache(async (filters: QuizFilters) => {
   try {
@@ -19,7 +15,7 @@ export const getQuizzes = cache(async (filters: QuizFilters) => {
   }
 });
 
-export const getQuizById = cache(async (id: string) => {
+export const getQuizById = cache(async (id: string): Promise<Quiz> => {
   try {
     const quiz = await quizRepository.findById(id);
     if (!quiz) {
@@ -33,19 +29,16 @@ export const getQuizById = cache(async (id: string) => {
   }
 });
 
-export const createQuiz = async (data: Quiz) => {
+export const createQuiz = async (data: Quiz): Promise<Quiz> => {
   try {
-    const quizData: Prisma.QuizCreateInput = {
-      judul: data.judul,
-      deskripsi: data.deskripsi,
-      type: data.type,
-      status: data.status,
+    // Check if materi exists (can be added if needed)
+    const quiz = await quizRepository.create({
+      ...data,
       materiRef: {
-        connect: { id: data.materiId }
-      }
-    };
-    
-    return await quizRepository.create(quizData);
+        connect: { id: data.materiId },
+      },
+    });
+    return quiz;
   } catch (e) {
     if (e instanceof ApiError) throw e;
     console.error("Create Quiz Error:", e);
@@ -53,21 +46,13 @@ export const createQuiz = async (data: Quiz) => {
   }
 };
 
-export const updateQuiz = async (id: string, data: Partial<Quiz>) => {
+export const updateQuiz = async (
+  id: string,
+  data: Partial<Quiz>
+): Promise<Quiz> => {
   try {
-    const updateData: Prisma.QuizUpdateInput = {
-      judul: data.judul,
-      deskripsi: data.deskripsi,
-      type: data.type,
-      status: data.status,
-      ...(data.materiId && {
-        materiRef: {
-          connect: { id: data.materiId }
-        }
-      })
-    };
-
-    return await quizRepository.update(id, updateData);
+    const quiz = await quizRepository.update(id, data);
+    return quiz;
   } catch (e) {
     if (e instanceof ApiError) throw e;
     console.error("Update Quiz Error:", e);
@@ -75,7 +60,7 @@ export const updateQuiz = async (id: string, data: Partial<Quiz>) => {
   }
 };
 
-export const deleteQuiz = async (id: string) => {
+export const deleteQuiz = async (id: string): Promise<void> => {
   try {
     await quizRepository.delete(id);
   } catch (e) {
@@ -85,25 +70,43 @@ export const deleteQuiz = async (id: string) => {
   }
 };
 
-// Fungsi untuk mengambil soal random untuk mobile app
-export const getRandomQuizQuestions = cache(async (quizId: string) => {
+export const getQuizStats = cache(async (): Promise<QuizStats> => {
   try {
-    const quiz = await quizRepository.findById(quizId);
-    if (!quiz) {
-      throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
-    }
-
-    if (quiz.type === "MULTIPLE_CHOICE") {
-      // Ambil 10 soal random untuk pilihan ganda
-      const randomQuestions = await quizRepository.getRandomSoalPg(quizId, 10);
-      return randomQuestions;
-    }
-
-    // Untuk essay, kembalikan semua soal essay yang aktif
-    return quiz.soalEssay.filter(soal => soal.status);
+    return await quizRepository.getStats();
   } catch (e) {
-    if (e instanceof ApiError) throw e;
-    console.error("Get Random Quiz Questions Error:", e);
-    throw new ApiError("FETCH_FAILED", "Gagal mengambil soal quiz", 500);
+    console.error("Get Quiz Stats Error:", e);
+    throw new ApiError("FETCH_FAILED", "Gagal mengambil statistik quiz", 500);
   }
 });
+
+// Additional service methods for soal management
+export const getRandomSoalPg = cache(
+  async (quizId: string, count: number = 10) => {
+    try {
+      const quiz = await quizRepository.findById(quizId);
+      if (!quiz) {
+        throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+      }
+
+      if (quiz.type !== "MULTIPLE_CHOICE") {
+        throw new ApiError(
+          "INVALID_TYPE",
+          "Quiz bukan tipe pilihan ganda",
+          400
+        );
+      }
+
+      // Get active soal and randomize
+      const activeSoal = quiz.soalPg.filter((soal) => soal.status);
+      const randomSoal = activeSoal
+        .sort(() => Math.random() - 0.5)
+        .slice(0, count);
+
+      return randomSoal;
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+      console.error("Get Random Soal PG Error:", e);
+      throw new ApiError("FETCH_FAILED", "Gagal mengambil soal quiz", 500);
+    }
+  }
+);
