@@ -7,7 +7,7 @@ import { validateFile } from "@/utils/upload";
 import type { UploadResult } from "@/types/upload";
 import ImageKit from "imagekit";
 import { Prisma } from "@prisma/client";
-import { deleteImageKitFile, getFileIdFromUrl } from "@/utils/imagekit";
+import { deleteImageKitFileByUrl } from "@/utils/imagekit";
 
 const imageKit = new ImageKit({
   publicKey: process.env.NEXT_PUBLIC_PUBLIC_KEY!,
@@ -177,6 +177,38 @@ export const createVideoMateri = async (
   }
 };
 
+export const deleteVideoMateri = async (id: string) => {
+  try {
+    // Get video details first
+    const videoMateri = await videoMateriRepository.findById(id);
+    if (!videoMateri) {
+      throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
+    }
+
+    // Delete media files from ImageKit
+    if (videoMateri.videoUrl) {
+      const videoDeleted = await deleteImageKitFileByUrl(videoMateri.videoUrl);
+      if (!videoDeleted) {
+        console.warn(`Failed to delete video file: ${videoMateri.videoUrl}`);
+      }
+    }
+
+    if (videoMateri.thumbnailUrl) {
+      const thumbnailDeleted = await deleteImageKitFileByUrl(videoMateri.thumbnailUrl);
+      if (!thumbnailDeleted) {
+        console.warn(`Failed to delete thumbnail file: ${videoMateri.thumbnailUrl}`);
+      }
+    }
+
+    // Delete database record
+    await videoMateriRepository.delete(id);
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    console.error("Delete VideoMateri Error:", e);
+    throw new ApiError("DELETE_FAILED", "Gagal menghapus video materi", 500);
+  }
+};
+
 export const updateVideoMateri = async (
   id: string,
   data: Prisma.VideoMateriUpdateInput,
@@ -184,7 +216,6 @@ export const updateVideoMateri = async (
   thumbnailFile?: File
 ) => {
   try {
-    // Get current data
     const currentVideo = await videoMateriRepository.findById(id);
     if (!currentVideo) {
       throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
@@ -205,10 +236,7 @@ export const updateVideoMateri = async (
       
       // Delete old video if exists
       if (currentVideo.videoUrl) {
-        const oldVideoFileId = getFileIdFromUrl(currentVideo.videoUrl);
-        if (oldVideoFileId) {
-          await deleteImageKitFile(oldVideoFileId);
-        }
+        await deleteImageKitFileByUrl(currentVideo.videoUrl);
       }
       
       updateData.videoUrl = videoResult.url;
@@ -227,10 +255,7 @@ export const updateVideoMateri = async (
 
       // Delete old thumbnail if exists
       if (currentVideo.thumbnailUrl) {
-        const oldThumbnailFileId = getFileIdFromUrl(currentVideo.thumbnailUrl);
-        if (oldThumbnailFileId) {
-          await deleteImageKitFile(oldThumbnailFileId);
-        }
+        await deleteImageKitFileByUrl(currentVideo.thumbnailUrl);
       }
 
       updateData.thumbnailUrl = thumbnailResult.url;
@@ -241,38 +266,6 @@ export const updateVideoMateri = async (
     if (e instanceof ApiError) throw e;
     console.error("Update VideoMateri Error:", e);
     throw new ApiError("UPDATE_FAILED", "Gagal mengupdate video materi", 500);
-  }
-};
-
-export const deleteVideoMateri = async (id: string) => {
-  try {
-    // Get video details first
-    const videoMateri = await videoMateriRepository.findById(id);
-    if (!videoMateri) {
-      throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
-    }
-
-    // Delete media files from ImageKit
-    if (videoMateri.videoUrl) {
-      const videoFileId = getFileIdFromUrl(videoMateri.videoUrl);
-      if (videoFileId) {
-        await deleteImageKitFile(videoFileId);
-      }
-    }
-
-    if (videoMateri.thumbnailUrl) {
-      const thumbnailFileId = getFileIdFromUrl(videoMateri.thumbnailUrl);
-      if (thumbnailFileId) {
-        await deleteImageKitFile(thumbnailFileId);
-      }
-    }
-
-    // Delete database record
-    await videoMateriRepository.delete(id);
-  } catch (e) {
-    if (e instanceof ApiError) throw e;
-    console.error("Delete VideoMateri Error:", e);
-    throw new ApiError("DELETE_FAILED", "Gagal menghapus video materi", 500);
   }
 };
 
