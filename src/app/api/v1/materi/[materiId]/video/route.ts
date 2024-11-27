@@ -13,7 +13,7 @@ import type { Prisma } from "@prisma/client";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { materiId: string } }
+  { params }: { params: Promise<{ materiId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -33,6 +33,7 @@ export async function POST(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
+    const { materiId } = await params;
     const formData = await request.formData();
     const video = formData.get("video") as File;
     const thumbnail = formData.get("thumbnail") as File | null;
@@ -46,7 +47,7 @@ export async function POST(
     const data = JSON.parse(dataStr);
     const validatedData = videoMateriInputSchema.parse({
       ...data,
-      materiId: params.materiId,
+      materiId,
     });
 
     // Prepare create data
@@ -56,7 +57,7 @@ export async function POST(
       durasi: validatedData.durasi,
       status: true,
       materiRef: {
-        connect: { id: params.materiId }
+        connect: { id: materiId }
       },
       // videoUrl dan urutan akan diisi oleh service
       videoUrl: "", // temporary, will be replaced by service

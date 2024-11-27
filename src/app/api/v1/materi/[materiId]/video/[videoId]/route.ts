@@ -13,7 +13,7 @@ import { videoMateriInputSchema } from "@/types/materi";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { materiId: string; videoId: string } }
+  { params }: { params: Promise<{ materiId: string; videoId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -25,10 +25,11 @@ export async function GET(
 
     await verifyJWT(token);
 
-    const videoMateri = await getVideoMateriById(params.videoId);
+    const { materiId, videoId } = await params;
+    const videoMateri = await getVideoMateriById(videoId);
 
     // Validate that videoMateri belongs to the specified materi
-    if (videoMateri.materiId !== params.materiId) {
+    if (videoMateri.materiId !== materiId) {
       throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
     }
 
@@ -52,7 +53,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { materiId: string; videoId: string } }
+  { params }: { params: Promise<{ materiId: string; videoId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -72,6 +73,7 @@ export async function PATCH(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
+    const { materiId, videoId } = await params;
     const formData = await request.formData();
     const videoFile = formData.get("video") as File | null;
     const thumbnailFile = formData.get("thumbnail") as File | null;
@@ -80,12 +82,12 @@ export async function PATCH(
     const data = JSON.parse(dataStr);
     const validatedData = videoMateriInputSchema.partial().parse({
       ...data,
-      materiId: params.materiId,
+      materiId,
     });
 
     // Update video materi
     const videoMateri = await updateVideoMateri(
-      params.videoId,
+      videoId,
       {
         judul: validatedData.judul,
         deskripsi: validatedData.deskripsi,
@@ -116,7 +118,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { materiId: string; videoId: string } }
+  { params }: { params: Promise<{ materiId: string; videoId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -136,14 +138,15 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
+    const { materiId, videoId } = await params;
     // Check if video exists and belongs to the materi
-    const videoMateri = await getVideoMateriById(params.videoId);
-    if (!videoMateri || videoMateri.materiId !== params.materiId) {
+    const videoMateri = await getVideoMateriById(videoId);
+    if (!videoMateri || videoMateri.materiId !== materiId) {
       throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
     }
 
     // Delete video materi and its media files
-    await deleteVideoMateri(params.videoId);
+    await deleteVideoMateri(videoId);
 
     return NextResponse.json({
       success: true,
