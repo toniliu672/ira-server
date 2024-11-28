@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // src/app/api/v1/mobile/quiz/route.ts
 
 import { NextRequest, NextResponse } from "next/server";

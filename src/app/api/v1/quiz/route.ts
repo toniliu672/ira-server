@@ -1,5 +1,4 @@
 // src/app/api/v1/quiz/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";

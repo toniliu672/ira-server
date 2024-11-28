@@ -14,7 +14,7 @@ import { soalEssaySchema } from "@/types/quiz";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { quizId: string; soalId: string } }
+  { params }: { params: Promise<{ quizId: string; soalId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -26,10 +26,11 @@ export async function GET(
 
     await verifyJWT(token);
 
-    const soalEssay = await getSoalEssayById(params.soalId);
+    const { quizId, soalId } = await params;
+    const soalEssay = await getSoalEssayById(soalId);
 
     // Validate that soal belongs to the quiz
-    if (soalEssay.quizId !== params.quizId) {
+    if (soalEssay.quizId !== quizId) {
       throw new ApiError("NOT_FOUND", "Soal tidak ditemukan", 404);
     }
 
@@ -53,7 +54,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { quizId: string; soalId: string } }
+  { params }: { params: Promise<{ quizId: string; soalId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -73,13 +74,14 @@ export async function PATCH(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
+    const { quizId, soalId } = await params;
     const body = await request.json();
     const validatedData = soalEssaySchema.partial().parse(body);
     
-    const soalEssay = await updateSoalEssay(params.soalId, validatedData);
+    const soalEssay = await updateSoalEssay(soalId, validatedData);
 
     // Validate that soal belongs to the quiz
-    if (soalEssay.quizId !== params.quizId) {
+    if (soalEssay.quizId !== quizId) {
       throw new ApiError("NOT_FOUND", "Soal tidak ditemukan", 404);
     }
 
@@ -110,7 +112,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { quizId: string; soalId: string } }
+  { params }: { params: Promise<{ quizId: string; soalId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -130,13 +132,15 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
+    const { quizId, soalId } = await params;
+
     // Verify soal belongs to quiz before deletion
-    const soalEssay = await getSoalEssayById(params.soalId);
-    if (soalEssay.quizId !== params.quizId) {
+    const soalEssay = await getSoalEssayById(soalId);
+    if (soalEssay.quizId !== quizId) {
       throw new ApiError("NOT_FOUND", "Soal tidak ditemukan", 404);
     }
 
-    await deleteSoalEssay(params.soalId);
+    await deleteSoalEssay(soalId);
 
     return NextResponse.json({
       success: true,

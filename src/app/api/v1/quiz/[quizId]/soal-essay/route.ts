@@ -13,7 +13,7 @@ import { soalEssaySchema } from "@/types/quiz";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { quizId: string } }
+  { params }: { params: Promise<{ quizId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -25,10 +25,11 @@ export async function GET(
 
     await verifyJWT(token);
 
+    const { quizId } = await params;
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get("status") !== "false";
 
-    const soalEssay = await getSoalEssayByQuizId(params.quizId, status);
+    const soalEssay = await getSoalEssayByQuizId(quizId, status);
 
     return NextResponse.json({
       success: true,
@@ -50,7 +51,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { quizId: string } }
+  { params }: { params: Promise<{ quizId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -70,10 +71,11 @@ export async function POST(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
+    const { quizId } = await params;
     const body = await request.json();
     const validatedData = soalEssaySchema.parse({
       ...body,
-      quizId: params.quizId
+      quizId
     });
     
     const soalEssay = await createSoalEssay(validatedData);

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // src/app/api/v1/quiz/[quizId]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
@@ -10,7 +11,7 @@ import { quizSchema } from "@/types/quiz";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { quizId: string } }
+  { params }: { params: Promise<{ quizId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -22,7 +23,12 @@ export async function GET(
 
     await verifyJWT(token);
 
-    const quiz = await getQuizById(params.quizId);
+    const { quizId } = await params;
+    const quiz = await getQuizById(quizId);
+    
+    if (!quiz) {
+      throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+    }
 
     return NextResponse.json({
       success: true,
@@ -44,7 +50,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { quizId: string } }
+  { params }: { params: Promise<{ quizId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -64,10 +70,22 @@ export async function PATCH(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
-    const body = await request.json();
-    const validatedData = quizSchema.partial().parse(body);
+    const { quizId } = await params;
     
-    const quiz = await updateQuiz(params.quizId, validatedData);
+    // Check if quiz exists before updating
+    const existingQuiz = await getQuizById(quizId);
+    if (!existingQuiz) {
+      throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+    }
+
+    const body = await request.json();
+    
+    // Remove type and materiId from update data since they can't be changed
+    const { type, materiId, ...updateData } = body;
+    
+    const validatedData = quizSchema.partial().parse(updateData);
+    
+    const quiz = await updateQuiz(quizId, validatedData);
 
     return NextResponse.json({
       success: true,
@@ -96,7 +114,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { quizId: string } }
+  { params }: { params: Promise<{ quizId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -116,7 +134,15 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
-    await deleteQuiz(params.quizId);
+    const { quizId } = await params;
+
+    // Check if quiz exists before deleting
+    const existingQuiz = await getQuizById(quizId);
+    if (!existingQuiz) {
+      throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+    }
+
+    await deleteQuiz(quizId);
 
     return NextResponse.json({
       success: true,
