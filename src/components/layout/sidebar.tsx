@@ -61,6 +61,11 @@ const navItems: NavItem[] = [
     href: "/admin/users",
     icon: Users,
   },
+  {
+    title: "Quiz",
+    href: "/admin/quiz",
+    icon: Users,
+  },
 ];
 
 export default function Sidebar({

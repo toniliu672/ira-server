@@ -1,27 +1,24 @@
-// prisma/seed.ts
+// prisma/seed.js
 
 import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcrypt'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
+import { spawn } from 'child_process'
 
 const prisma = new PrismaClient()
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 async function main() {
-  // Hash password
-  const hashedPassword = await bcrypt.hash('12345678', 10)
+  // Uncomment seed yang diperlukan
+  
+  // Seed Admin
+  // spawn('node', [join(__dirname, 'seeds', 'admin.js')], { stdio: 'inherit' })
+  
+// Seed Essay Quiz
+ spawn('node', [join(__dirname, 'seeds', 'essay.js')], { stdio: 'inherit' })
 
-  // Create admin
-  const admin = await prisma.admin.upsert({
-    where: { email: 'admin@gmail.com' },
-    update: {},
-    create: {
-      username: 'admin',
-      name: 'Administrator',
-      email: 'admin@gmail.com',
-      password: hashedPassword,
-    },
-  })
-
-  console.log({ admin })
+  // Seed Quiz
+  spawn('node', [join(__dirname, 'seeds', 'quiz.js')], { stdio: 'inherit' })
 }
 
 main()

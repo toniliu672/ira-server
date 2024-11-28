@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack -p 3170",
     "build": "prisma generate && next build",
+    "tesa": "next build",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "prisma generate",
@@ -13,8 +14,7 @@
     "db:seed": "prisma db seed"
   },
   "prisma": {
-    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
-  },
+"seed": "node prisma/seed.js"  },
   "overrides": {
     "react": "$react",
     "react-dom": "$react-dom"

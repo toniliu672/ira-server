@@ -5,7 +5,14 @@ import { z } from "zod";
 import { verifyJWT } from "@/lib/auth";
 import { getQuizzes, getQuizStats, createQuiz } from "@/services/quizService";
 import { ApiError } from "@/lib/errors";
-import { quizSchema } from "@/types/quiz";
+
+const createQuizSchema = z.object({
+  judul: z.string().min(1, "Judul harus diisi"),
+  deskripsi: z.string().nullable(),
+  type: z.enum(["MULTIPLE_CHOICE", "ESSAY"]),
+  materiId: z.string().min(1, "Materi harus dipilih"),
+  status: z.boolean().default(true),
+});
 
 export async function GET(request: NextRequest) {
   try {
@@ -74,10 +81,25 @@ export async function POST(request: NextRequest) {
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
+    // Parse and validate request body
     const body = await request.json();
-    const validatedData = quizSchema.parse(body);
     
-    const quiz = await createQuiz(validatedData);
+    if (!body) {
+      throw new ApiError("BAD_REQUEST", "Request body is required", 400);
+    }
+
+    const validatedData = createQuizSchema.parse(body);
+
+    // Transform data untuk service
+    const quizData = {
+      judul: validatedData.judul,
+      deskripsi: validatedData.deskripsi || null,
+      type: validatedData.type,
+      materiId: validatedData.materiId,
+      status: validatedData.status
+    };
+    
+    const quiz = await createQuiz(quizData);
 
     return NextResponse.json({
       success: true,
@@ -87,7 +109,14 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json(
-        { success: false, error: "Validation error", details: e.errors },
+        { 
+          success: false, 
+          error: "Validation error", 
+          details: e.errors.map(err => ({
+            field: err.path.join('.'),
+            message: err.message
+          }))
+        },
         { status: 400 }
       );
     }
@@ -97,6 +126,7 @@ export async function POST(request: NextRequest) {
         { status: e.status }
       );
     }
+    console.error("Quiz POST Error:", e);
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

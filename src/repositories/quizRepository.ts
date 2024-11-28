@@ -81,16 +81,64 @@ export class QuizRepository {
     }
   }
 
-  async create(data: Prisma.QuizCreateInput) {
+  async create(data: Omit<Prisma.QuizCreateInput, 'materiRef'> & { materiId: string }) {
     try {
+      const { materiId, ...quizData } = data;
+
+      // Validasi data
+      if (!materiId || !quizData.judul || !quizData.type) {
+        throw new ApiError(
+          "VALIDATION_ERROR",
+          "Data quiz tidak lengkap",
+          400
+        );
+      }
+
+      // Cek apakah materi exists
+      const materi = await prisma.materi.findUnique({
+        where: { id: materiId }
+      });
+
+      if (!materi) {
+        throw new ApiError(
+          "NOT_FOUND",
+          "Materi tidak ditemukan",
+          404
+        );
+      }
+
       return await prisma.quiz.create({
-        data,
-        include: {
-          soalPg: true,
-          soalEssay: true,
+        data: {
+          ...quizData,
+          materiRef: {
+            connect: { id: materiId }
+          }
         },
+        include: {
+          materiRef: {
+            select: {
+              judul: true
+            }
+          },
+          _count: {
+            select: {
+              soalPg: true,
+              soalEssay: true
+            }
+          }
+        }
       });
     } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError) {
+        if (e.code === 'P2002') {
+          throw new ApiError(
+            "DUPLICATE_ENTRY",
+            "Quiz dengan judul tersebut sudah ada",
+            409
+          );
+        }
+      }
+      if (e instanceof ApiError) throw e;
       console.error("Repository Create Quiz Error:", e);
       throw new ApiError("CREATE_FAILED", "Gagal membuat quiz", 500);
     }
