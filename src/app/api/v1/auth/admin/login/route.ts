@@ -1,12 +1,13 @@
 // src/app/api/v1/auth/admin/login/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
 import prisma from "@/lib/prisma";
 import { signJWT } from "@/lib/auth";
 import type { AuthResponse, LoginCredentials } from "@/types/auth";
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(
   request: NextRequest
@@ -16,6 +17,13 @@ export async function POST(
 
     const admin = await prisma.admin.findUnique({
       where: { username: body.username },
+      select: {
+        id: true,
+        username: true,
+        password: true,
+        name: true,
+        email: true
+      }
     });
 
     if (!admin) {
@@ -34,41 +42,18 @@ export async function POST(
       );
     }
 
-    // Generate JWT token
+    // Generate tokens
     const token = await signJWT({
       sub: admin.id,
       username: admin.username,
       email: admin.email,
       role: "admin",
     });
-
-    // Generate CSRF token
+    
+    // Generate CSRF token for subsequent requests
     const csrfToken = uuidv4();
-
-    // Set cookies
-    const cookieStore = await cookies();
-
-    // Set JWT token
-    cookieStore.set({
-      name: "admin-token",
-      value: token,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-    });
-
-    // Set CSRF token
-    cookieStore.set({
-      name: "csrf-token",
-      value: csrfToken,
-      httpOnly: false, // Important: JavaScript needs to read this
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-    });
-
-    return NextResponse.json({
+    
+    const response = NextResponse.json({
       success: true,
       message: "Login successful",
       data: {
@@ -81,10 +66,30 @@ export async function POST(
         },
       },
     });
-  } catch (e) {
-    const error = e as Error;
-    console.error("Login Error:", error.message);
 
+    // Set tokens in cookies
+    response.cookies.set({
+      name: "admin-token",
+      value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    });
+
+    response.cookies.set({
+      name: "csrf-token",
+      value: csrfToken,
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    });
+
+    return response;
+
+  } catch (e) {
+    console.error("Login Error:", e);
     return NextResponse.json(
       { success: false, message: "Internal server error" },
       { status: 500 }

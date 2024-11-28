@@ -8,32 +8,37 @@ import { cookies } from "next/headers";
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // Skip middleware for API routes and unauthorized page
-  if (path.includes("/unauthorized")) {
+  // Skip middleware for specific paths
+  if (
+    path.includes("/unauthorized") || 
+    path.startsWith("/api/v1/mobile") 
+  ) {
     return NextResponse.next();
   }
 
-  // CSRF Protection untuk API routes
-  if (path.startsWith("/api/v1") && !path.startsWith("/api/v1/mobile")) {
-    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
-      const csrfToken = request.headers.get('x-csrf-token');
-      const cookieStore = cookies();
-      const storedToken = (await cookieStore).get('csrf-token')?.value;
+  // Skip CSRF check for login and non-mutating endpoints
+  const isLoginEndpoint = path.startsWith('/api/v1/auth');
+  const isGetRequest = request.method === 'GET';
+  
+  // CSRF Protection untuk API routes kecuali login, GET requests, dan mobile endpoints
+  if (path.startsWith("/api/v1") && !isLoginEndpoint && !isGetRequest) {
+    const csrfToken = request.headers.get('x-csrf-token');
+    const cookieStore = cookies();
+    const storedToken = (await cookieStore).get('csrf-token')?.value;
 
-      if (!csrfToken || !storedToken || csrfToken !== storedToken) {
-        return new NextResponse(
-          JSON.stringify({ 
-            success: false, 
-            error: "Invalid CSRF token" 
-          }), 
-          { 
-            status: 403,
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-      }
+    if (!csrfToken || !storedToken || csrfToken !== storedToken) {
+      return new NextResponse(
+        JSON.stringify({ 
+          success: false, 
+          error: "Invalid CSRF token" 
+        }), 
+        { 
+          status: 403,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
     }
   }
 
