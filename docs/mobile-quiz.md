@@ -1,185 +1,200 @@
-# Quiz Management API
+# Mobile Quiz API Documentation
 
-## Quiz Endpoints
+## Authentication
+Semua endpoint memerlukan:
+- Bearer token di header `Authorization`
+- Device ID di header `X-Device-ID` 
 
-### List Quiz
+## Endpoints
+
+### Get Quiz List
+**Endpoint:** GET /api/v1/mobile/quiz
+
+**Description:** Mendapatkan daftar quiz berdasarkan materi tertentu.
+
+**Headers:**
 ```
-GET /api/v1/quiz
-Query: ?search=string&type=MULTIPLE_CHOICE|ESSAY&materiId=string&page=1&limit=10&sortBy=judul&sortOrder=asc&status=boolean
-```
-
-### Get Single Quiz
-```
-GET /api/v1/quiz/{quizId}
-```
-
-### Create Quiz
-```
-POST /api/v1/quiz
-
-Input:
-{
-  "judul": "string",
-  "deskripsi": "string",
-  "type": "MULTIPLE_CHOICE" | "ESSAY",
-  "status": boolean,
-  "materiId": "string"
-}
-
-Response:
-{
-  "success": true,
-  "data": {
-    "id": "string",
-    "judul": "string",
-    "deskripsi": "string",
-    "type": "MULTIPLE_CHOICE" | "ESSAY",
-    "status": boolean,
-    "materiId": "string"
-  }
-}
+Authorization: Bearer <token>
+X-Device-ID: <deviceId>
 ```
 
-### Update Quiz
+**Query Parameters:**
 ```
-PATCH /api/v1/quiz/{quizId}
-
-Input: (semua field optional)
-{
-  "judul": "string",
-  "deskripsi": "string",
-  "status": boolean
-}
+materiId: string (required) - ID materi yang diminta
 ```
 
-### Delete Quiz
-```
-DELETE /api/v1/quiz/{quizId}
-```
-
-## Soal PG (Multiple Choice) Endpoints
-
-### List Soal PG
-```
-GET /api/v1/quiz/{quizId}/soal-pg
-Query: ?status=boolean
-```
-
-### Create Soal PG
-```
-POST /api/v1/quiz/{quizId}/soal-pg
-
-Input:
-{
-  "pertanyaan": "string",
-  "opsiJawaban": ["string"],
-  "kunciJawaban": number,
-  "status": boolean
-}
-
-Response:
-{
-  "success": true,
-  "data": {
-    "id": "string",
-    "pertanyaan": "string",
-    "opsiJawaban": ["string"],
-    "kunciJawaban": number,
-    "status": boolean,
-    "quizId": "string"
-  }
-}
-```
-
-### Update Soal PG
-```
-PATCH /api/v1/quiz/{quizId}/soal-pg/{soalId}
-
-Input: (semua field optional)
-{
-  "pertanyaan": "string",
-  "opsiJawaban": ["string"],
-  "kunciJawaban": number,
-  "status": boolean
-}
-```
-
-### Delete Soal PG
-```
-DELETE /api/v1/quiz/{quizId}/soal-pg/{soalId}
-```
-
-## Soal Essay Endpoints
-
-### List Soal Essay
-```
-GET /api/v1/quiz/{quizId}/soal-essay
-Query: ?status=boolean
-```
-
-### Create Soal Essay
-```
-POST /api/v1/quiz/{quizId}/soal-essay
-
-Input:
-{
-  "pertanyaan": "string",
-  "status": boolean
-}
-
-Response:
-{
-  "success": true,
-  "data": {
-    "id": "string",
-    "pertanyaan": "string",
-    "status": boolean,
-    "quizId": "string"
-  }
-}
-```
-
-### Update Soal Essay
-```
-PATCH /api/v1/quiz/{quizId}/soal-essay/{soalId}
-
-Input: (semua field optional)
-{
-  "pertanyaan": "string",
-  "status": boolean
-}
-```
-
-### Delete Soal Essay
-```
-DELETE /api/v1/quiz/{quizId}/soal-essay/{soalId}
-```
-
-## Response Formats
-
-### Success Response Format
+**Success Response (200):**
 ```json
 {
   "success": true,
-  "data": {},
-  "message": "string"
+  "data": [
+    {
+      "id": "string",
+      "judul": "string",
+      "deskripsi": "string",
+      "type": "MULTIPLE_CHOICE" | "ESSAY",
+      "status": true,
+      "materiId": "string"
+    }
+  ]
 }
 ```
 
-### Error Response Format
+### Get Quiz Detail
+**Endpoint:** GET /api/v1/mobile/quiz/{quizId}
+
+**Description:** Mendapatkan detail quiz beserta soal-soalnya.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+X-Device-ID: <deviceId>
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "quiz": {
+      "id": "string",
+      "judul": "string", 
+      "deskripsi": "string",
+      "type": "MULTIPLE_CHOICE" | "ESSAY"
+    },
+    "questions": [
+      // For Multiple Choice:
+      {
+        "id": "string",
+        "pertanyaan": "string",
+        "opsiJawaban": ["string"],
+        "status": true
+      }
+      // OR for Essay:
+      {
+        "id": "string",
+        "pertanyaan": "string",
+        "status": true
+      }
+    ]
+  }
+}
+```
+
+### Submit Quiz Answers
+**Endpoint:** POST /api/v1/mobile/quiz/{quizId}/answers
+
+**Description:** Mengirim jawaban quiz (PG atau Essay).
+
+**Headers:**
+```
+Authorization: Bearer <token>
+X-Device-ID: <deviceId>
+```
+
+**Request Body for Multiple Choice:**
+```json
+{
+  "answers": [
+    {
+      "soalId": "string",
+      "jawaban": number
+    }
+  ]
+}
+```
+
+**Request Body for Essay:**
+```json
+{
+  "soalId": "string",
+  "jawaban": "string"
+}
+```
+
+**Success Response (201):**
+```json
+{
+  "success": true,
+  "data": {
+    // For Multiple Choice:
+    "results": [
+      {
+        "id": "string",
+        "soalId": "string",
+        "jawaban": number,
+        "isCorrect": boolean,
+        "nilai": number
+      }
+    ],
+    "totalScore": number
+    
+    // OR for Essay:
+    "id": "string",
+    "soalId": "string",
+    "jawaban": "string",
+    "nilai": null
+  },
+  "message": "Jawaban berhasil disimpan"
+}
+```
+
+### Get Quiz Results
+**Endpoint:** GET /api/v1/mobile/quiz/results
+
+**Description:** Mendapatkan hasil quiz siswa.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+X-Device-ID: <deviceId>
+```
+
+**Query Parameters:**
+```
+materiId: string (optional) - Filter berdasarkan materi
+type: "MULTIPLE_CHOICE" | "ESSAY" (optional) - Filter berdasarkan tipe quiz
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "quizId": "string",
+      "quizTitle": "string",
+      "type": "MULTIPLE_CHOICE" | "ESSAY",
+      "materiId": "string",
+      "materiTitle": "string",
+      "avgScore": number,
+      "totalQuestions": number,
+      "answeredQuestions": number
+    }
+  ]
+}
+```
+
+## Error Responses
+Semua endpoint mengembalikan format error yang sama:
+
 ```json
 {
   "success": false,
-  "error": "string",
-  "details": [] // For validation errors
+  "error": "Error message"
 }
 ```
 
+**Status Codes:**
+- `400` - Bad Request (format/parameter tidak valid)
+- `401` - Unauthorized (token tidak valid/device ID tidak ada)  
+- `404` - Not Found (quiz/soal tidak ditemukan)
+- `500` - Internal Server Error
+
 ## Notes
-- Semua request memerlukan token admin dalam cookie (`admin-token`)
-- Semua request mutasi (POST/PATCH/DELETE) memerlukan CSRF token dalam header `X-CSRF-Token`
-- Field `type` pada quiz tidak bisa diubah setelah dibuat
-- `kunciJawaban` pada soal PG adalah index dari array `opsiJawaban` (0-based)
-- Soal PG hanya bisa dibuat untuk quiz dengan type `MULTIPLE_CHOICE`
-- Soal Essay hanya bisa dibuat untuk quiz dengan type `ESSAY`
-- Penghapusan quiz akan menghapus semua soal yang terkait
+1. Semua data yang dikembalikan hanya yang status=true
+2. Multiple choice answers menggunakan index 0-based dari array opsiJawaban
+3. Hasil essay tidak langsung memiliki nilai (null) sampai dinilai oleh admin
+4. Quiz results bisa difilter berdasarkan materi dan tipe quiz
+5. Satu soal hanya bisa dijawab sekali per siswa
+6. Device ID wajib disertakan di setiap request sebagai bagian dari autentikasi
