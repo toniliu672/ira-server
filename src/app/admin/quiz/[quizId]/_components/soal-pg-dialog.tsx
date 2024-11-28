@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, FieldValues } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -49,11 +49,14 @@ const soalPgSchema = z.object({
   status: z.boolean().default(true),
 });
 
-interface SoalPgInput extends z.infer<typeof soalPgSchema> {
+interface FormValues extends FieldValues {
+  pertanyaan: string;
   opsiJawaban: string[];
+  kunciJawaban: string;
+  status: boolean;
 }
 
-const defaultValues: SoalPgInput = {
+const defaultValues: FormValues = {
   pertanyaan: "",
   opsiJawaban: ["", ""],
   kunciJawaban: "0",
@@ -70,15 +73,16 @@ export function SoalPgDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const form = useForm<SoalPgInput>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(soalPgSchema),
     defaultValues,
   });
 
-  const { fields, append, remove } = useFieldArray<SoalPgInput>({
-    name: 'opsiJawaban',
-    control: form.control
+  const { fields, append, remove } = useFieldArray<FormValues>({
+    control: form.control,
+    name: "opsiJawaban",
   });
+
 
   useEffect(() => {
     if (soalId) {
@@ -99,7 +103,7 @@ export function SoalPgDialog({
     }
   }, [soalId, quizId, form]);
 
-  async function onSubmit(values: SoalPgInput) {
+  async function onSubmit(values: FormValues) {
     setIsLoading(true);
     setError(null);
     

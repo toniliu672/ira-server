@@ -31,13 +31,14 @@ export const getQuizById = cache(async (id: string): Promise<Quiz> => {
 
 export const createQuiz = async (data: Quiz): Promise<Quiz> => {
   try {
-    // Check if materi exists (can be added if needed)
-    const quiz = await quizRepository.create({
-      ...data,
-      materiRef: {
-        connect: { id: data.materiId },
-      },
-    });
+    const { materiId, ...quizData } = data;
+
+    const createInput = {
+      ...quizData,
+      materiId, // Include materiId separately as required by repository
+    };
+
+    const quiz = await quizRepository.create(createInput);
     return quiz;
   } catch (e) {
     if (e instanceof ApiError) throw e;
@@ -79,7 +80,6 @@ export const getQuizStats = cache(async (): Promise<QuizStats> => {
   }
 });
 
-// Additional service methods for soal management
 export const getRandomSoalPg = cache(
   async (quizId: string, count: number = 10) => {
     try {
