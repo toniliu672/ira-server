@@ -1,111 +1,159 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/services/quizResultService.ts
 
 import prisma from "@/lib/prisma";
 import { ApiError } from "@/lib/errors";
 import { unstable_cache } from "next/cache";
-import type { QuizType } from "@prisma/client";
+import type { QuizType, Prisma } from "@prisma/client";
 
-interface QuizResult {
-  quizId: string;
-  quizTitle: string;
-  type: QuizType;
-  materiId: string;
-  materiTitle: string;
-  avgScore: number;
-  totalQuestions: number;
-  answeredQuestions: number;
-}
-
-interface ResultFilters {
-  materiId?: string;
+interface QuizResultFilters {
+  search?: string;
   type?: QuizType;
+  status?: 'GRADED' | 'UNGRADED';
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
-export const getStudentQuizResults = unstable_cache(
-  async (studentId: string, filters: ResultFilters = {}): Promise<QuizResult[]> => {
+
+export const getQuizResults = unstable_cache(
+  async (quizId: string, filters: QuizResultFilters = {}) => {
     try {
-      const quizzes = await prisma.quiz.findMany({
-        where: {
-          materiId: filters.materiId,
-          type: filters.type,
-          status: true
-        },
+      const {
+        search = '',
+        status,
+        page = 1,
+        limit = 10,
+        sortOrder = 'asc'
+      } = filters;
+
+      // Get quiz first
+      const quiz = await prisma.quiz.findUnique({
+        where: { id: quizId },
         include: {
           materiRef: {
-            select: {
-              judul: true
-            }
+            select: { judul: true }
           }
         }
       });
 
-      const results = await Promise.all(
-        quizzes.map(async (quiz) => {
-          let avgScore = 0;
-          let totalQuestions = 0;
-          let answeredQuestions = 0;
+      if (!quiz) {
+        throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+      }
 
-          if (quiz.type === 'MULTIPLE_CHOICE') {
-            const pgAnswers = await prisma.soalPg.findMany({
-              where: { quizId: quiz.id },
-              include: {
-                jawabanPg: {
-                  where: { studentId }
-                }
+      // Build query based on quiz type
+      const studentWhere: Prisma.StudentWhereInput = {
+        AND: [
+          // Search condition
+          search ? {
+            OR: [
+              { username: { contains: search } },
+              { fullName: { contains: search } }
+            ]
+          } : {},
+          // Quiz type specific conditions
+          quiz.type === 'MULTIPLE_CHOICE' ? {
+            jawabanPg: {
+              some: {
+                soalRef: { quizId }
               }
-            });
-
-            totalQuestions = pgAnswers.length;
-            answeredQuestions = pgAnswers.filter(s => s.jawabanPg.length > 0).length;
-
-            if (answeredQuestions > 0) {
-              const scores = pgAnswers.flatMap(s => s.jawabanPg.map(j => j.nilai));
-              avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
             }
-          } else {
-            const essayAnswers = await prisma.soalEssay.findMany({
-              where: { quizId: quiz.id },
-              include: {
-                jawabanEssay: {
-                  where: { 
-                    studentId,
-                    nilai: { not: null }
-                  }
-                }
+          } : {
+            jawabanEssay: {
+              some: {
+                soalRef: { quizId },
+                ...(status === 'GRADED' ? { nilai: { not: null } } : 
+                   status === 'UNGRADED' ? { nilai: null } : {})
               }
-            });
-
-            totalQuestions = essayAnswers.length;
-            answeredQuestions = essayAnswers.filter(s => s.jawabanEssay.length > 0).length;
-
-            if (answeredQuestions > 0) {
-              const scores = essayAnswers.flatMap(s => s.jawabanEssay.map(j => j.nilai ?? 0));
-              avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
             }
           }
+        ]
+      };
 
-          return {
-            quizId: quiz.id,
-            quizTitle: quiz.judul,
-            type: quiz.type,
-            materiId: quiz.materiId,
-            materiTitle: quiz.materiRef.judul,
-            avgScore,
-            totalQuestions,
-            answeredQuestions
-          };
-        })
-      );
+      // Get paginated students with their answers
+      const students = await prisma.student.findMany({
+        where: studentWhere,
+        select: {
+          id: true,
+          username: true,
+          fullName: true,
+          lastLogin: true,
+          jawabanPg: quiz.type === 'MULTIPLE_CHOICE' ? {
+            where: { soalRef: { quizId } },
+            include: { soalRef: true }
+          } : undefined,
+          jawabanEssay: quiz.type === 'ESSAY' ? {
+            where: { soalRef: { quizId } },
+            include: { soalRef: true }
+          } : undefined
+        },
+        orderBy: { fullName: sortOrder },
+        skip: (page - 1) * limit,
+        take: limit
+      });
 
-      return results;
+      const total = await prisma.student.count({ where: studentWhere });
+
+      // Calculate scores and format response
+      const results = students.map(student => ({
+        student: {
+          id: student.id,
+          username: student.username,
+          name: student.fullName
+        },
+        quiz: {
+          id: quiz.id,
+          title: quiz.judul,
+          type: quiz.type
+        },
+        scores: calculateStudentScores(student, quiz.type),
+        submittedAt: student.lastLogin
+      }));
+
+      return {
+        results,
+        pagination: {
+          total,
+          page,
+          totalPages: Math.ceil(total / limit)
+        }
+      };
     } catch (e) {
-      console.error("Get Student Quiz Results Error:", e);
+      if (e instanceof ApiError) throw e;
+      console.error("Get Quiz Results Error:", e);
       throw new ApiError("FETCH_FAILED", "Gagal mengambil hasil quiz", 500);
     }
   },
-  ['student-quiz-results'],
+  ['quiz-results'],
   {
     revalidate: 60,
     tags: ['quiz-results']
   }
 );
+
+// Helper function to calculate student scores
+function calculateStudentScores(
+  student: any,
+  quizType: QuizType
+) {
+  const answers = quizType === 'MULTIPLE_CHOICE' 
+    ? student.jawabanPg || []
+    : student.jawabanEssay || [];
+
+  const totalAnswered = answers.length;
+  let avgScore = 0;
+
+  if (totalAnswered > 0) {
+    const totalScore = answers.reduce((acc: number, ans: any) => 
+      acc + (ans.nilai || 0), 0);
+    avgScore = totalScore / totalAnswered;
+  }
+
+  return {
+    answered: totalAnswered,
+    avgScore,
+    isComplete: quizType === 'MULTIPLE_CHOICE' ? true : 
+      answers.every((ans: any) => ans.nilai !== null)
+  };
+}

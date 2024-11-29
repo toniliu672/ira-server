@@ -95,3 +95,36 @@ export interface QuizStats {
   essay: number;
   active: number;
 }
+
+
+// Quiz result
+export interface QuizResult {
+  student: {
+    id: string;
+    username: string;
+    name: string;
+  };
+  quiz: {
+    id: string;
+    title: string;
+    type: "MULTIPLE_CHOICE" | "ESSAY";
+  };
+  scores: {
+    answered: number;
+    avgScore: number;
+    isComplete: boolean;
+  };
+  submittedAt: string;
+}
+
+export interface QuizResultsResponse {
+  success: boolean;
+  data: {
+    results: QuizResult[];
+    pagination: {
+      total: number;
+      page: number;
+      totalPages: number;
+    };
+  };
+}

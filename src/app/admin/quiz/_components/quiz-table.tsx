@@ -29,7 +29,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDebounce } from "@/hooks/use-debounce";
-import { Edit, MoreHorizontal, Trash, FileEdit } from "lucide-react";
+import {
+  Edit,
+  MoreHorizontal,
+  Trash,
+  FileEdit,
+  GraduationCap,
+} from "lucide-react";
 import { QuizDeleteDialog } from "./quiz-delete-dialog";
 
 interface Quiz {
@@ -172,12 +178,38 @@ export function QuizTable({ initialData }: QuizTableProps) {
                           <FileEdit className="mr-2 h-4 w-4" />
                           Edit Soal
                         </DropdownMenuItem>
+
+                        {quiz.type === "ESSAY" ? (
+                          // Menu untuk quiz essay
+                          <>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                router.push(`/admin/quiz/${quiz.id}/results`)
+                              }
+                            >
+                              <GraduationCap className="mr-2 h-4 w-4" />
+                              Nilai Essay
+                            </DropdownMenuItem>
+                          </>
+                        ) : (
+                          // Menu untuk quiz pilihan ganda
+                          <DropdownMenuItem
+                            onClick={() =>
+                              router.push(`/admin/quiz/${quiz.id}/results`)
+                            }
+                          >
+                            <GraduationCap className="mr-2 h-4 w-4" />
+                            Lihat Nilai
+                          </DropdownMenuItem>
+                        )}
+
                         <DropdownMenuItem
                           onClick={() => router.push(`/admin/quiz/${quiz.id}`)}
                         >
                           <Edit className="mr-2 h-4 w-4" />
                           Edit Quiz
                         </DropdownMenuItem>
+
                         <DropdownMenuItem
                           className="text-destructive"
                           onClick={() => {

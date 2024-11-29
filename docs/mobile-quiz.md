@@ -7,7 +7,7 @@ Semua endpoint memerlukan:
 
 ## Endpoints
 
-### Get Quiz List
+### 1. Get Quiz List
 **Endpoint:** GET /api/v1/mobile/quiz
 
 **Description:** Mendapatkan daftar quiz berdasarkan materi tertentu.
@@ -40,7 +40,7 @@ materiId: string (required) - ID materi yang diminta
 }
 ```
 
-### Get Quiz Detail
+### 2. Get Quiz Detail
 **Endpoint:** GET /api/v1/mobile/quiz/{quizId}
 
 **Description:** Mendapatkan detail quiz beserta soal-soalnya.
@@ -81,7 +81,7 @@ X-Device-ID: <deviceId>
 }
 ```
 
-### Submit Quiz Answers
+### 3. Submit Quiz Answers
 **Endpoint:** POST /api/v1/mobile/quiz/{quizId}/answers
 
 **Description:** Mengirim jawaban quiz (PG atau Essay).
@@ -139,10 +139,10 @@ X-Device-ID: <deviceId>
 }
 ```
 
-### Get Quiz Results
+### 4. Get Quiz Results List
 **Endpoint:** GET /api/v1/mobile/quiz/results
 
-**Description:** Mendapatkan hasil quiz siswa.
+**Description:** Mendapatkan daftar hasil semua quiz yang telah dikerjakan siswa.
 
 **Headers:**
 ```
@@ -152,26 +152,69 @@ X-Device-ID: <deviceId>
 
 **Query Parameters:**
 ```
-materiId: string (optional) - Filter berdasarkan materi
-type: "MULTIPLE_CHOICE" | "ESSAY" (optional) - Filter berdasarkan tipe quiz
+quizId: string (required) - ID quiz yang diminta
 ```
 
 **Success Response (200):**
 ```json
 {
   "success": true,
-  "data": [
-    {
-      "quizId": "string",
-      "quizTitle": "string",
-      "type": "MULTIPLE_CHOICE" | "ESSAY",
-      "materiId": "string",
-      "materiTitle": "string",
-      "avgScore": number,
-      "totalQuestions": number,
-      "answeredQuestions": number
+  "data": {
+    "quiz": {
+      "id": "string",
+      "judul": "string",
+      "type": "MULTIPLE_CHOICE" | "ESSAY"
+    },
+    "result": {
+      "scores": {
+        "answered": number,
+        "avgScore": number,
+        "isComplete": boolean
+      },
+      "submittedAt": "2024-01-01T00:00:00Z"
     }
-  ]
+  }
+}
+```
+
+### 5. Get Quiz Result Detail
+**Endpoint:** GET /api/v1/mobile/quiz/{quizId}/details
+
+**Description:** Mendapatkan detail hasil quiz tertentu beserta jawaban siswa.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+X-Device-ID: <deviceId>
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "quiz": {
+      "id": "string",
+      "judul": "string",
+      "type": "MULTIPLE_CHOICE" | "ESSAY",
+      "materiId": "string"
+    },
+    "answers": [
+      {
+        "id": "string",
+        "pertanyaan": "string",
+        "jawaban": "string" | number,
+        "nilai": number,
+        "feedback": "string", // Only for essay
+        "isCorrect": boolean  // Only for multiple choice
+      }
+    ],
+    "summary": {
+      "totalAnswered": number,
+      "avgScore": number,
+      "isComplete": boolean
+    }
+  }
 }
 ```
 
@@ -195,6 +238,9 @@ Semua endpoint mengembalikan format error yang sama:
 1. Semua data yang dikembalikan hanya yang status=true
 2. Multiple choice answers menggunakan index 0-based dari array opsiJawaban
 3. Hasil essay tidak langsung memiliki nilai (null) sampai dinilai oleh admin
-4. Quiz results bisa difilter berdasarkan materi dan tipe quiz
-5. Satu soal hanya bisa dijawab sekali per siswa
-6. Device ID wajib disertakan di setiap request sebagai bagian dari autentikasi
+4. Satu soal hanya bisa dijawab sekali per siswa
+5. Device ID wajib disertakan di setiap request
+6. Token berisi informasi studentId yang digunakan untuk filter data
+7. Quiz type menentukan format jawaban dan response yang dikembalikan
+8. Untuk quiz PG, nilai dihitung otomatis
+9. Untuk quiz Essay, feedback opsional dan hanya ada setelah dinilai

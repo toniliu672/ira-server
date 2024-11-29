@@ -14,7 +14,8 @@
     "db:seed": "prisma db seed"
   },
   "prisma": {
-"seed": "node prisma/seed.js"  },
+    "seed": "node prisma/seed.js"
+  },
   "overrides": {
     "react": "$react",
     "react-dom": "$react-dom"
