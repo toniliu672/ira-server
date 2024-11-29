@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/v1/mobile/quiz/[quizId]/answers/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
@@ -9,6 +8,10 @@ import { createJawabanPg } from "@/services/jawabanPgService";
 import { createJawabanEssay } from "@/services/jawabanEssayService";
 import { AUTH_CONFIG } from "@/config/auth";
 import { z } from "zod";
+
+type RouteContext = {
+  params: Promise<{ quizId: string }>
+};
 
 // Validation schemas
 const baseAnswerSchema = z.object({
@@ -30,14 +33,11 @@ const essayAnswerSchema = baseAnswerSchema.extend({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { quizId: string } }
+  context: RouteContext
 ) {
   try {
-    // Basic validation
-    if (!params.quizId) {
-      throw new ApiError("BAD_REQUEST", "Quiz ID diperlukan", 400);
-    }
-
+    const { quizId } = await context.params;
+    
     // Auth validation
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -55,7 +55,7 @@ export async function POST(
     }
 
     // Get quiz details first
-    const quiz = await getQuizById(params.quizId);
+    const quiz = await getQuizById(quizId);
     if (!quiz) {
       throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
     }
@@ -64,7 +64,7 @@ export async function POST(
     let body;
     try {
       body = await request.json();
-    } catch {
+    } catch  {
       throw new ApiError("BAD_REQUEST", "Invalid JSON body", 400);
     }
 
@@ -72,7 +72,7 @@ export async function POST(
     if (quiz.type === "MULTIPLE_CHOICE") {
       const validatedData = pgAnswerSchema.parse({
         ...body,
-        quizId: params.quizId,
+        quizId,
         studentId: payload.sub
       });
 
@@ -101,6 +101,7 @@ export async function POST(
 
       // Calculate average score from successful submissions
       const scores = successful
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map(r => (r as PromiseFulfilledResult<any>).value.nilai);
       const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
 
@@ -120,7 +121,7 @@ export async function POST(
       // Essay type
       const validatedData = essayAnswerSchema.parse({
         ...body,
-        quizId: params.quizId,
+        quizId,
         studentId: payload.sub
       });
 
