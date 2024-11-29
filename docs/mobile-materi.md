@@ -1,22 +1,21 @@
-# Mobile Learning Content API Specification
+# Mobile Learning Content API Documentation
 
-## Get Materi List
-**Endpoint:** GET /api/v1/mobile/materi  
-**Description:** Mendapatkan daftar materi yang aktif dengan dukungan pagination dan pencarian
+## Authentication Requirements
+Setiap request memerlukan:
+- Header `Authorization: Bearer <token>`  
+- Header `X-Device-ID: <deviceId>`
 
-**Request Headers:**
-```
-Authorization: Bearer <accessToken>
-```
+## Endpoints
+
+### 1. Get Materi List
+**Endpoint:** GET /api/v1/mobile/materi
 
 **Query Parameters:**
-```
-search: string (optional) - Kata kunci pencarian
-page: number (optional, default: 1) - Halaman yang diminta
-limit: number (optional, default: 10) - Jumlah item per halaman
-```
+- `search` (optional): string - Kata kunci pencarian
+- `page` (optional): number - Halaman yang diminta (default: 1)
+- `limit` (optional): number - Jumlah item per halaman (default: 10)
 
-**Success Response (200 OK):**
+**Success Response (200):**
 ```json
 {
   "success": true,
@@ -43,26 +42,10 @@ limit: number (optional, default: 10) - Jumlah item per halaman
 }
 ```
 
-**Error Responses:**
-- `401` - Token tidak valid atau tidak ditemukan
-- `403` - Invalid token type
-- `429` - Rate limit exceeded
+### 2. Get Single Materi Detail
+**Endpoint:** GET /api/v1/mobile/materi/{materiId}
 
-## Get Materi Detail
-**Endpoint:** GET /api/v1/mobile/materi/{materiId}  
-**Description:** Mendapatkan detail materi beserta sub materi dan video materi yang aktif
-
-**Request Headers:**
-```
-Authorization: Bearer <accessToken>
-```
-
-**Path Parameters:**
-```
-materiId: string (required) - ID materi yang diminta
-```
-
-**Success Response (200 OK):**
+**Success Response (200):**
 ```json
 {
   "success": true,
@@ -104,32 +87,13 @@ materiId: string (required) - ID materi yang diminta
 }
 ```
 
-**Error Responses:**
-- `401` - Token tidak valid atau tidak ditemukan
-- `403` - Invalid token type
-- `404` - Materi tidak ditemukan
-- `429` - Rate limit exceeded
-
-## Get Sub Materi List
-**Endpoint:** GET /api/v1/mobile/materi/{materiId}/sub  
-**Description:** Mendapatkan daftar sub materi yang aktif untuk materi tertentu
-
-**Request Headers:**
-```
-Authorization: Bearer <accessToken>
-```
-
-**Path Parameters:**
-```
-materiId: string (required) - ID materi yang diminta
-```
+### 3. Get Sub Materi List
+**Endpoint:** GET /api/v1/mobile/materi/{materiId}/sub
 
 **Query Parameters:**
-```
-search: string (optional) - Kata kunci pencarian
-```
+- `search` (optional): string - Kata kunci pencarian
 
-**Success Response (200 OK):**
+**Success Response (200):**
 ```json
 {
   "success": true,
@@ -149,32 +113,34 @@ search: string (optional) - Kata kunci pencarian
 }
 ```
 
-**Error Responses:**
-- `401` - Token tidak valid atau tidak ditemukan
-- `403` - Invalid token type
-- `404` - Materi tidak ditemukan
-- `429` - Rate limit exceeded
+### 4. Get Single Sub Materi Detail
+**Endpoint:** GET /api/v1/mobile/materi/{materiId}/sub/{subId}
 
-## Get Video Materi List
-**Endpoint:** GET /api/v1/mobile/materi/{materiId}/video  
-**Description:** Mendapatkan daftar video materi yang aktif untuk materi tertentu
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Successfully retrieved sub materi detail",
+  "data": {
+    "id": "string",
+    "judul": "string",
+    "konten": "string", 
+    "imageUrls": ["string"],
+    "urutan": number,
+    "status": true,
+    "createdAt": "string",
+    "updatedAt": "string"
+  }
+}
+```
 
-**Request Headers:**
-```
-Authorization: Bearer <accessToken>
-```
-
-**Path Parameters:**
-```
-materiId: string (required) - ID materi yang diminta
-```
+### 5. Get Video Materi List
+**Endpoint:** GET /api/v1/mobile/materi/{materiId}/video
 
 **Query Parameters:**
-```
-search: string (optional) - Kata kunci pencarian
-```
+- `search` (optional): string - Kata kunci pencarian
 
-**Success Response (200 OK):**
+**Success Response (200):**
 ```json
 {
   "success": true,
@@ -189,35 +155,39 @@ search: string (optional) - Kata kunci pencarian
       "durasi": number,
       "urutan": number,
       "status": true,
-      "createdAt": "string", 
+      "createdAt": "string",
       "updatedAt": "string"
     }
   ]
 }
 ```
 
-**Error Responses:**
-- `401` - Token tidak valid atau tidak ditemukan
-- `403` - Invalid token type
-- `404` - Materi tidak ditemukan
-- `429` - Rate limit exceeded
+### 6. Get Single Video Materi Detail
+**Endpoint:** GET /api/v1/mobile/materi/{materiId}/video/{videoId}
 
-## General Notes
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Successfully retrieved video materi detail",
+  "data": {
+    "id": "string",
+    "judul": "string",
+    "deskripsi": "string",
+    "videoUrl": "string",
+    "thumbnailUrl": "string", 
+    "durasi": number,
+    "urutan": number,
+    "status": true,
+    "createdAt": "string",
+    "updatedAt": "string"
+  }
+}
+```
 
-1. **Authentication**
-   - Semua endpoint memerlukan token JWT dalam header Authorization
-   - Format header: `Authorization: Bearer <accessToken>`
-   - Token harus memiliki role="user"
+## Error Responses
 
-2. **Rate Limiting**
-   - Setiap endpoint memiliki rate limit 30 request per menit per IP
-   - Status 429 akan dikembalikan jika rate limit terlampaui
-
-3. **Filtering**
-   - Semua endpoint hanya mengembalikan data dengan status=true
-   - Urutan data didasarkan pada field 'urutan' secara ascending
-
-4. **Error Response Format**
+Semua error responses menggunakan format:
 ```json
 {
   "success": false,
@@ -225,3 +195,18 @@ search: string (optional) - Kata kunci pencarian
   "error": "ERROR_CODE"
 }
 ```
+
+**Status Codes:**
+- `401` - Token tidak valid atau tidak ditemukan
+- `403` - Invalid token type
+- `404` - Data tidak ditemukan
+- `429` - Rate limit exceeded
+- `500` - Internal server error
+
+## Additional Notes
+
+1. Autentikasi menggunakan JWT token di header Authorization
+2. Semua endpoint memerlukan Device ID di header
+3. Semua data yang dikembalikan hanya yang status=true
+4. Urutan data didasarkan pada field 'urutan' secara ascending
+5. Rate limit: 30 request per menit per IP

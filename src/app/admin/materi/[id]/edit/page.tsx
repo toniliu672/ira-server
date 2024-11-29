@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { getCSRFToken } from "@/lib/csrf";
+import { UploadImage } from "@/components/upload-image";
 import type { Materi } from "@/types/materi";
 
 interface MateriEditProps {
@@ -50,6 +51,13 @@ export default function MateriEditPage({ params: paramsPromise }: MateriEditProp
 
     fetchMateri();
   }, [params.id]);
+
+  const handleThumbnailUpload = (url: string) => {
+    setFormData(prev => ({
+      ...prev,
+      thumbnailUrl: url
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,20 +143,17 @@ export default function MateriEditPage({ params: paramsPromise }: MateriEditProp
                 id="deskripsi"
                 value={formData.deskripsi || ""}
                 onChange={(e) =>
-                  // src/app/admin/materi/[id]/edit/page.tsx (lanjutan)
                   setFormData({ ...formData, deskripsi: e.target.value })
                 }
               />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="thumbnailUrl">URL Thumbnail</Label>
-              <Input
-                id="thumbnailUrl"
-                value={formData.thumbnailUrl || ""}
-                onChange={(e) =>
-                  setFormData({ ...formData, thumbnailUrl: e.target.value })
-                }
+              <Label>Thumbnail</Label>
+              <UploadImage 
+                images={formData.thumbnailUrl ? [formData.thumbnailUrl] : []}
+                onUploadSuccess={handleThumbnailUpload}
+                onRemove={() => setFormData(prev => ({ ...prev, thumbnailUrl: "" }))}
               />
             </div>
 
