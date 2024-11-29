@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/v1/mobile/quiz/[quizId]/answers/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { verifyJWT } from "@/lib/auth";
 import { ApiError } from "@/lib/errors";
@@ -6,98 +8,162 @@ import { getQuizById } from "@/services/quizService";
 import { createJawabanPg } from "@/services/jawabanPgService";
 import { createJawabanEssay } from "@/services/jawabanEssayService";
 import { AUTH_CONFIG } from "@/config/auth";
-import { jawabanPgSchema, jawabanEssaySchema } from "@/types/quiz";
+import { z } from "zod";
 
-type RouteContext = {
-  params: Promise<{ quizId: string }>;
-};
+// Validation schemas
+const baseAnswerSchema = z.object({
+  quizId: z.string().uuid(),
+  studentId: z.string().uuid()
+});
 
-interface PgAnswerInput {
-  soalId: string;
-  jawaban: number;
-}
+const pgAnswerSchema = baseAnswerSchema.extend({
+  answers: z.array(z.object({
+    soalId: z.string().uuid(),
+    jawaban: z.number().min(0).max(3)
+  }))
+});
 
-export async function POST(request: NextRequest, context: RouteContext) {
+const essayAnswerSchema = baseAnswerSchema.extend({
+  soalId: z.string().uuid(),
+  jawaban: z.string().min(1, "Jawaban tidak boleh kosong")
+});
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { quizId: string } }
+) {
   try {
-    const { quizId } = await context.params;
+    // Basic validation
+    if (!params.quizId) {
+      throw new ApiError("BAD_REQUEST", "Quiz ID diperlukan", 400);
+    }
 
+    // Auth validation
     const authHeader = request.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       throw new ApiError("UNAUTHORIZED", "Token tidak valid", 401);
     }
 
+    // Extract and verify JWT
     const token = authHeader.split(" ")[1];
     const payload = await verifyJWT(token);
 
+    // Device ID validation for mobile
     const deviceId = request.headers.get(AUTH_CONFIG.mobile.deviceIdHeader);
     if (AUTH_CONFIG.mobile.requiredForMobile && !deviceId) {
       throw new ApiError("UNAUTHORIZED", "Device ID diperlukan", 401);
     }
 
-    const quiz = await getQuizById(quizId);
+    // Get quiz details first
+    const quiz = await getQuizById(params.quizId);
     if (!quiz) {
       throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
     }
 
-    const body = await request.json();
+    // Parse request body with error handling
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      throw new ApiError("BAD_REQUEST", "Invalid JSON body", 400);
+    }
 
+    // Handle different quiz types
     if (quiz.type === "MULTIPLE_CHOICE") {
-      if (!Array.isArray(body.answers)) {
-        throw new ApiError("BAD_REQUEST", "Format jawaban tidak valid", 400);
-      }
-
-      const results = await Promise.all(
-        body.answers.map(async (answer: PgAnswerInput) => {
-          const validatedAnswer = jawabanPgSchema.parse({
-            ...answer,
-            studentId: payload.sub,
-          });
-          return createJawabanPg(validatedAnswer);
-        })
-      );
-
-      const totalScore =
-        results.reduce((acc, curr) => acc + curr.nilai, 0) / results.length;
-
-      return NextResponse.json(
-        {
-          success: true,
-          data: {
-            results,
-            totalScore,
-          },
-          message: "Jawaban berhasil disimpan",
-        },
-        { status: 201 }
-      );
-    } else {
-      const validatedAnswer = jawabanEssaySchema.parse({
+      const validatedData = pgAnswerSchema.parse({
         ...body,
-        studentId: payload.sub,
-        soalId: body.soalId,
+        quizId: params.quizId,
+        studentId: payload.sub
       });
 
-      const result = await createJawabanEssay(validatedAnswer);
+      // Process each answer
+      const results = await Promise.allSettled(
+        validatedData.answers.map(answer =>
+          createJawabanPg({
+            studentId: payload.sub,
+            soalId: answer.soalId,
+            jawaban: answer.jawaban
+          })
+        )
+      );
 
-      return NextResponse.json(
-        {
-          success: true,
-          data: result,
-          message: "Jawaban essay berhasil disimpan",
+      // Calculate success rate
+      const successful = results.filter(r => r.status === "fulfilled");
+      const failed = results.filter(r => r.status === "rejected");
+
+      if (successful.length === 0) {
+        throw new ApiError(
+          "PROCESSING_FAILED",
+          "Gagal menyimpan semua jawaban",
+          500
+        );
+      }
+
+      // Calculate average score from successful submissions
+      const scores = successful
+        .map(r => (r as PromiseFulfilledResult<any>).value.nilai);
+      const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          submitted: successful.length,
+          failed: failed.length,
+          avgScore: avgScore * 100 // Convert to percentage
         },
-        { status: 201 }
-      );
+        message: successful.length === results.length
+          ? "Semua jawaban berhasil disimpan"
+          : `${successful.length} dari ${results.length} jawaban berhasil disimpan`
+      }, { status: 201 });
+
+    } else {
+      // Essay type
+      const validatedData = essayAnswerSchema.parse({
+        ...body,
+        quizId: params.quizId,
+        studentId: payload.sub
+      });
+
+      const result = await createJawabanEssay({
+        studentId: payload.sub,
+        soalId: validatedData.soalId,
+        jawaban: validatedData.jawaban
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: result.id,
+          status: "PENDING_REVIEW"
+        },
+        message: "Jawaban essay berhasil disimpan"
+      }, { status: 201 });
     }
+
   } catch (e) {
-    if (e instanceof ApiError) {
-      return NextResponse.json(
-        { success: false, error: e.message },
-        { status: e.status }
-      );
+    console.error("Mobile Quiz Answer Error:", e);
+
+    if (e instanceof z.ZodError) {
+      return NextResponse.json({
+        success: false,
+        error: "Validation error",
+        details: e.errors.map(err => ({
+          field: err.path.join("."),
+          message: err.message
+        }))
+      }, { status: 400 });
     }
-    return NextResponse.json(
-      { success: false, error: "Internal server error" },
-      { status: 500 }
-    );
+
+    if (e instanceof ApiError) {
+      return NextResponse.json({
+        success: false,
+        error: e.message
+      }, { status: e.status });
+    }
+
+    return NextResponse.json({
+      success: false,
+      error: "Internal server error"
+    }, { status: 500 });
   }
 }
