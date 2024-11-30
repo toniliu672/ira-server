@@ -3,7 +3,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyJWT } from "@/lib/auth";
 import { ApiError } from "@/lib/errors";
-import { createJawabanPg, updateStudentPgScore } from "@/services/jawabanPgService";
 import { createJawabanEssay } from "@/services/jawabanEssayService";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
@@ -100,9 +99,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
         );
       }
 
-      // Process all answers in a transaction
+      // Process all answers in a transaction with increased timeout
       const results = await prisma.$transaction(async (tx) => {
-        // Set previous answers as not latest
+        // Set previous answers as not latest in bulk
         await tx.jawabanPg.updateMany({
           where: {
             studentId: payload.sub,
@@ -116,41 +115,69 @@ export async function POST(request: NextRequest, context: RouteContext) {
           }
         });
 
-        // Create new answers
-        const newAnswers = await Promise.all(
-          answers.map(answer => 
-            createJawabanPg({
-              studentId: payload.sub,
-              soalId: answer.soalId,
-              jawaban: answer.jawaban
-            }, tx)
-          )
+        // Get all soal details in one query
+        const soalDetails = await tx.soalPg.findMany({
+          where: {
+            id: {
+              in: answers.map(a => a.soalId)
+            }
+          },
+          select: {
+            id: true,
+            kunciJawaban: true
+          }
+        });
+
+        // Create map for faster lookups
+        const soalMap = new Map(
+          soalDetails.map(s => [s.id, s.kunciJawaban])
         );
 
-        // Update final score
-        await updateStudentPgScore(payload.sub, tx);
+        // Prepare all insert data
+        const insertData = answers.map(answer => ({
+          studentId: payload.sub,
+          soalId: answer.soalId,
+          jawaban: answer.jawaban,
+          isCorrect: answer.jawaban === soalMap.get(answer.soalId),
+          nilai: answer.jawaban === soalMap.get(answer.soalId) ? 1 : 0,
+          attemptCount: 1,
+          latestAttempt: true
+        }));
 
-        return newAnswers;
+        // Bulk create all answers
+        const newAnswers = await tx.jawabanPg.createMany({
+          data: insertData
+        });
+
+        // Calculate and update average score
+        const avgScore = insertData.reduce((sum, item) => sum + item.nilai, 0) / insertData.length;
+
+        await tx.student.update({
+          where: { id: payload.sub },
+          data: { nilaiPg: avgScore }
+        });
+
+        return {
+          submitted: newAnswers.count,
+          avgScore: avgScore * 100
+        };
+      }, {
+        timeout: 10000 // Increase timeout to 10 seconds
       });
-
-      // Calculate final statistics
-      const totalScore = results.reduce((sum, r) => sum + (r.nilai || 0), 0);
-      const avgScore = (totalScore / results.length) * 100;
 
       return NextResponse.json(
         {
           success: true,
           data: {
-            submitted: results.length,
+            submitted: results.submitted,
             failed: 0,
-            avgScore: Math.round(avgScore * 100) / 100,
+            avgScore: Math.round(results.avgScore * 100) / 100,
           },
           message: "Semua jawaban berhasil disimpan"
         },
         { status: 201 }
       );
     } else {
-      // Handle essay submission
       const { soalId, jawaban } = essayAnswerInput.parse(body);
 
       // Validate soalId exists in quiz
