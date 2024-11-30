@@ -36,18 +36,16 @@ export async function createJawabanPg(
     const isCorrect = data.jawaban === soal.kunciJawaban;
     const nilai = isCorrect ? 1 : 0;
 
-    // Update the answer with score
-    const jawaban = await tx.jawabanPg.update({
-      where: {
-        id: data.soalId,
-        AND: [
-          { studentId: data.studentId },
-          { latestAttempt: true }
-        ]
-      },
+    // Create new answer record
+    const jawaban = await tx.jawabanPg.create({
       data: {
+        studentId: data.studentId,
+        soalId: data.soalId,
+        jawaban: data.jawaban,
         isCorrect,
-        nilai
+        nilai,
+        attemptCount: 1,
+        latestAttempt: true
       }
     });
 
@@ -81,11 +79,10 @@ export const getStudentPgAnswers = unstable_cache(
   async (studentId: string, quizId?: string) => {
     const where = {
       studentId,
-      soalRef: quizId
-        ? {
-            quizId,
-          }
-        : undefined,
+      soalRef: quizId ? {
+        quizId
+      } : undefined,
+      latestAttempt: true
     };
 
     return prisma.jawabanPg.findMany({

@@ -116,47 +116,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
           }
         });
 
-        // Get current attempt counts
-        const prevAttempts = await tx.jawabanPg.groupBy({
-          by: ['soalId'],
-          where: {
-            studentId: payload.sub,
-            soalId: {
-              in: answers.map(a => a.soalId)
-            }
-          },
-          _count: {
-            soalId: true
-          }
-        });
-
-        const attemptMap = new Map(
-          prevAttempts.map(pa => [pa.soalId, pa._count.soalId])
-        );
-
         // Create new answers
         const newAnswers = await Promise.all(
-          answers.map(answer => {
-            const currentAttempt = attemptMap.get(answer.soalId) || 0;
-            return tx.jawabanPg.create({
-              data: {
-                studentId: payload.sub,
-                soalId: answer.soalId,
-                jawaban: answer.jawaban,
-                isCorrect: false,
-                nilai: 0,
-                attemptCount: currentAttempt + 1,
-                latestAttempt: true
-              }
-            });
-          })
-        );
-
-        // Calculate scores
-        await Promise.all(
-          newAnswers.map(answer => 
+          answers.map(answer => 
             createJawabanPg({
-              studentId: answer.studentId,
+              studentId: payload.sub,
               soalId: answer.soalId,
               jawaban: answer.jawaban
             }, tx)
@@ -186,6 +150,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         { status: 201 }
       );
     } else {
+      // Handle essay submission
       const { soalId, jawaban } = essayAnswerInput.parse(body);
 
       // Validate soalId exists in quiz
