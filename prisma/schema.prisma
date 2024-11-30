@@ -150,11 +150,13 @@ model JawabanPg {
   jawaban     Int       
   isCorrect   Boolean   
   nilai       Float     
+  attemptCount Int      @default(1)  // Track jumlah percobaan
+  latestAttempt Boolean @default(true)  // Marker untuk jawaban terbaru
   studentRef  Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   soalRef     SoalPg    @relation(fields: [soalId], references: [id], onDelete: Cascade)
 
   @@map("jawaban_pg")
-  @@unique([studentId, soalId])  // This will automatically create an index
+  @@index([studentId, soalId, latestAttempt])  // Optimasi query
 }
 
 model JawabanEssay {
@@ -164,9 +166,11 @@ model JawabanEssay {
   jawaban     String    
   nilai       Float?    
   feedback    String?   
+  attemptCount Int      @default(1)  // Track jumlah percobaan
+  latestAttempt Boolean @default(true)  // Marker untuk jawaban terbaru
   studentRef  Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
   soalRef     SoalEssay  @relation(fields: [soalId], references: [id], onDelete: Cascade)
 
   @@map("jawaban_essay")
-  @@unique([studentId, soalId])  // This will automatically create an index
+  @@index([studentId, soalId, latestAttempt])  // Optimasi query
 }

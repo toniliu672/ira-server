@@ -4,64 +4,91 @@ import type { JawabanPg } from "@/types/quiz";
 import prisma from "@/lib/prisma";
 import { ApiError } from "@/lib/errors";
 import { unstable_cache } from "next/cache";
+import { PrismaClient } from "@prisma/client";
 
 type CreateJawabanPgInput = Omit<JawabanPg, "id" | "isCorrect" | "nilai">;
 
-export const createJawabanPg = async (data: CreateJawabanPgInput): Promise<JawabanPg> => {
+export async function createJawabanPg(data: CreateJawabanPgInput): Promise<JawabanPg> {
   try {
-    // Get soal to verify answer
+    // Verify soal exists and is active
     const soal = await prisma.soalPg.findUnique({
-      where: { id: data.soalId }
+      where: { id: data.soalId },
+      select: { status: true, kunciJawaban: true }
     });
 
-    if (!soal) {
-      throw new ApiError("NOT_FOUND", "Soal tidak ditemukan", 404);
+    if (!soal || !soal.status) {
+      throw new ApiError("NOT_FOUND", "Soal tidak ditemukan atau tidak aktif", 404);
     }
 
-    // Check if student has already answered
-    const existing = await prisma.jawabanPg.findFirst({
-      where: {
-        studentId: data.studentId,
-        soalId: data.soalId
-      }
+    // Start transaction
+    return await prisma.$transaction(async (tx) => {
+      // Set previous attempts to not latest
+      await tx.jawabanPg.updateMany({
+        where: {
+          studentId: data.studentId,
+          soalId: data.soalId,
+          latestAttempt: true
+        },
+        data: {
+          latestAttempt: false
+        }
+      });
+
+      // Get attempt count
+      const prevAttempt = await tx.jawabanPg.findFirst({
+        where: {
+          studentId: data.studentId,
+          soalId: data.soalId
+        },
+        orderBy: {
+          attemptCount: 'desc'
+        },
+        select: {
+          attemptCount: true
+        }
+      });
+
+      // Calculate if answer is correct
+      const isCorrect = data.jawaban === soal.kunciJawaban;
+      const nilai = isCorrect ? 1 : 0;
+
+      // Create new answer
+      const jawaban = await tx.jawabanPg.create({
+        data: {
+          studentId: data.studentId,
+          soalId: data.soalId,
+          jawaban: data.jawaban,
+          isCorrect,
+          nilai,
+          attemptCount: (prevAttempt?.attemptCount ?? 0) + 1,
+          latestAttempt: true
+        }
+      });
+
+      // Update student's average PG score using only latest attempts
+      await updateStudentPgScore(data.studentId, tx as PrismaClient);
+
+      return jawaban;
     });
 
-    if (existing) {
-      throw new ApiError("DUPLICATE_ENTRY", "Soal sudah pernah dijawab", 409);
-    }
-
-    // Calculate if answer is correct
-    const isCorrect = data.jawaban === soal.kunciJawaban;
-    const nilai = isCorrect ? 1 : 0;
-
-    const jawaban = await prisma.jawabanPg.create({
-      data: {
-        studentId: data.studentId,
-        soalId: data.soalId,
-        jawaban: data.jawaban,
-        isCorrect,
-        nilai
-      }
-    });
-
-    // Update student's average score
-    await updateStudentPgScore(data.studentId);
-
-    return jawaban;
   } catch (e) {
     if (e instanceof ApiError) throw e;
     console.error("Create Jawaban PG Error:", e);
     throw new ApiError("CREATE_FAILED", "Gagal menyimpan jawaban", 500);
   }
-};
+}
 
-async function updateStudentPgScore(studentId: string): Promise<void> {
-  const avgScore = await prisma.jawabanPg.aggregate({
-    where: { studentId },
+async function updateStudentPgScore(studentId: string, tx = prisma): Promise<void> {
+  // Calculate average score only from latest attempts
+  const avgScore = await tx.jawabanPg.aggregate({
+    where: { 
+      studentId,
+      latestAttempt: true 
+    },
     _avg: { nilai: true }
   });
 
-  await prisma.student.update({
+  await tx.student.update({
     where: { id: studentId },
     data: { nilaiPg: avgScore._avg.nilai || 0 }
   });

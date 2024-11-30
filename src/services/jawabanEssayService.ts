@@ -7,7 +7,7 @@ import { unstable_cache } from "next/cache";
 
 type CreateJawabanEssayInput = Pick<JawabanEssay, "studentId" | "soalId" | "jawaban">;
 
-export const createJawabanEssay = async (data: CreateJawabanEssayInput): Promise<JawabanEssay> => {
+export async function createJawabanEssay(data: CreateJawabanEssayInput): Promise<JawabanEssay> {
   try {
     // Verify soal exists and is active
     const soal = await prisma.soalEssay.findUnique({
@@ -19,36 +19,56 @@ export const createJawabanEssay = async (data: CreateJawabanEssayInput): Promise
       throw new ApiError("NOT_FOUND", "Soal tidak ditemukan atau tidak aktif", 404);
     }
 
-    // Check if student has already answered
-    const existing = await prisma.jawabanEssay.findFirst({
-      where: {
-        studentId: data.studentId,
-        soalId: data.soalId
-      }
+    // Start transaction
+    return await prisma.$transaction(async (tx) => {
+      // Set previous attempts to not latest
+      await tx.jawabanEssay.updateMany({
+        where: {
+          studentId: data.studentId,
+          soalId: data.soalId,
+          latestAttempt: true
+        },
+        data: {
+          latestAttempt: false
+        }
+      });
+
+      // Get attempt count
+      const prevAttempt = await tx.jawabanEssay.findFirst({
+        where: {
+          studentId: data.studentId,
+          soalId: data.soalId
+        },
+        orderBy: {
+          attemptCount: 'desc'
+        },
+        select: {
+          attemptCount: true
+        }
+      });
+
+      // Create new answer
+      const jawaban = await tx.jawabanEssay.create({
+        data: {
+          studentId: data.studentId,
+          soalId: data.soalId,
+          jawaban: data.jawaban,
+          nilai: null,
+          feedback: null,
+          attemptCount: (prevAttempt?.attemptCount ?? 0) + 1,
+          latestAttempt: true
+        }
+      });
+
+      return jawaban;
     });
 
-    if (existing) {
-      throw new ApiError("DUPLICATE_ENTRY", "Soal sudah pernah dijawab", 409);
-    }
-
-    // Create answer without score
-    const jawaban = await prisma.jawabanEssay.create({
-      data: {
-        studentId: data.studentId,
-        soalId: data.soalId,
-        jawaban: data.jawaban,
-        nilai: null,
-        feedback: null
-      }
-    });
-
-    return jawaban;
   } catch (e) {
     if (e instanceof ApiError) throw e;
     console.error("Create Jawaban Essay Error:", e);
     throw new ApiError("CREATE_FAILED", "Gagal menyimpan jawaban", 500);
   }
-};
+}
 
 export const updateNilaiEssay = async (
   id: string,
