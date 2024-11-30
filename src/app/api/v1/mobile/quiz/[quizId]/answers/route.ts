@@ -12,7 +12,6 @@ type RouteContext = {
   params: Promise<{ quizId: string }>;
 };
 
-// Simplified validation schemas
 const pgAnswerInput = z.object({
   answers: z
     .array(
@@ -102,22 +101,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
         );
       }
 
-      // Check for duplicate answers
-      const existingAnswers = await prisma.jawabanPg.count({
-        where: {
-          studentId: payload.sub,
-          soalId: { in: answers.map((a) => a.soalId) },
-        },
-      });
-
-      if (existingAnswers > 0) {
-        throw new ApiError(
-          "DUPLICATE_ENTRY",
-          "Beberapa soal sudah pernah dijawab",
-          409
-        );
-      }
-
       // Process in chunks to avoid timeouts
       const CHUNK_SIZE = 10;
       let successCount = 0;
@@ -178,18 +161,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const validSoal = quiz.soalEssay.find((s) => s.id === soalId);
       if (!validSoal) {
         throw new ApiError("VALIDATION_ERROR", "Soal tidak valid", 400);
-      }
-
-      // Check for duplicate answer
-      const existingAnswer = await prisma.jawabanEssay.findFirst({
-        where: {
-          studentId: payload.sub,
-          soalId,
-        },
-      });
-
-      if (existingAnswer) {
-        throw new ApiError("DUPLICATE_ENTRY", "Soal sudah pernah dijawab", 409);
       }
 
       const result = await createJawabanEssay({
