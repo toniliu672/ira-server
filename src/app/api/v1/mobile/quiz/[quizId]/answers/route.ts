@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyJWT } from "@/lib/auth";
 import { ApiError } from "@/lib/errors";
-import { createJawabanPg } from "@/services/jawabanPgService";
+import { createJawabanPg, updateStudentPgScore } from "@/services/jawabanPgService";
 import { createJawabanEssay } from "@/services/jawabanEssayService";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
@@ -44,31 +44,30 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Parse body first to fail fast
     const body = await request.json();
 
-    // Get quiz details and verify student in single transaction
-    const [quiz, student] = await prisma.$transaction([
-      prisma.quiz.findUnique({
-        where: {
-          id: quizId,
-          status: true,
+    // Get quiz details and verify student
+    const quiz = await prisma.quiz.findUnique({
+      where: {
+        id: quizId,
+        status: true,
+      },
+      include: {
+        soalPg: {
+          where: { status: true },
+          select: { id: true },
         },
-        include: {
-          soalPg: {
-            where: { status: true },
-            select: { id: true },
-          },
-          soalEssay: {
-            where: { status: true },
-            select: { id: true },
-          },
+        soalEssay: {
+          where: { status: true },
+          select: { id: true },
         },
-      }),
-      prisma.student.findUnique({
-        where: {
-          id: payload.sub,
-          activeStatus: true,
-        },
-      }),
-    ]);
+      },
+    });
+
+    const student = await prisma.student.findUnique({
+      where: {
+        id: payload.sub,
+        activeStatus: true,
+      },
+    });
 
     if (!quiz) {
       throw new ApiError(
@@ -101,56 +100,88 @@ export async function POST(request: NextRequest, context: RouteContext) {
         );
       }
 
-      // Process in chunks to avoid timeouts
-      const CHUNK_SIZE = 10;
-      let successCount = 0;
-      let totalScore = 0;
+      // Process all answers in a transaction
+      const results = await prisma.$transaction(async (tx) => {
+        // Set previous answers as not latest
+        await tx.jawabanPg.updateMany({
+          where: {
+            studentId: payload.sub,
+            soalId: {
+              in: answers.map(a => a.soalId)
+            },
+            latestAttempt: true
+          },
+          data: {
+            latestAttempt: false
+          }
+        });
 
-      for (let i = 0; i < answers.length; i += CHUNK_SIZE) {
-        const chunk = answers.slice(i, i + CHUNK_SIZE);
-        const results = await Promise.all(
-          chunk.map((answer) =>
+        // Get current attempt counts
+        const prevAttempts = await tx.jawabanPg.groupBy({
+          by: ['soalId'],
+          where: {
+            studentId: payload.sub,
+            soalId: {
+              in: answers.map(a => a.soalId)
+            }
+          },
+          _count: {
+            soalId: true
+          }
+        });
+
+        const attemptMap = new Map(
+          prevAttempts.map(pa => [pa.soalId, pa._count.soalId])
+        );
+
+        // Create new answers
+        const newAnswers = await Promise.all(
+          answers.map(answer => {
+            const currentAttempt = attemptMap.get(answer.soalId) || 0;
+            return tx.jawabanPg.create({
+              data: {
+                studentId: payload.sub,
+                soalId: answer.soalId,
+                jawaban: answer.jawaban,
+                isCorrect: false,
+                nilai: 0,
+                attemptCount: currentAttempt + 1,
+                latestAttempt: true
+              }
+            });
+          })
+        );
+
+        // Calculate scores
+        await Promise.all(
+          newAnswers.map(answer => 
             createJawabanPg({
-              studentId: payload.sub,
+              studentId: answer.studentId,
               soalId: answer.soalId,
-              jawaban: answer.jawaban,
-            }).catch((e) => {
-              console.error(
-                `Failed to save answer for soalId ${answer.soalId}:`,
-                e
-              );
-              return null;
-            })
+              jawaban: answer.jawaban
+            }, tx)
           )
         );
 
-        const validResults = results.filter(Boolean);
-        successCount += validResults.length;
-        totalScore += validResults.reduce((sum, r) => sum + (r?.nilai || 0), 0);
-      }
+        // Update final score
+        await updateStudentPgScore(payload.sub, tx);
 
-      if (successCount === 0) {
-        throw new ApiError(
-          "PROCESSING_FAILED",
-          "Gagal menyimpan semua jawaban",
-          500
-        );
-      }
+        return newAnswers;
+      });
 
-      const avgScore = (totalScore / successCount) * 100;
+      // Calculate final statistics
+      const totalScore = results.reduce((sum, r) => sum + (r.nilai || 0), 0);
+      const avgScore = (totalScore / results.length) * 100;
 
       return NextResponse.json(
         {
           success: true,
           data: {
-            submitted: successCount,
-            failed: answers.length - successCount,
+            submitted: results.length,
+            failed: 0,
             avgScore: Math.round(avgScore * 100) / 100,
           },
-          message:
-            successCount === answers.length
-              ? "Semua jawaban berhasil disimpan"
-              : `${successCount} dari ${answers.length} jawaban berhasil disimpan`,
+          message: "Semua jawaban berhasil disimpan"
         },
         { status: 201 }
       );

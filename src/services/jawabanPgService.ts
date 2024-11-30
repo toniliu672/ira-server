@@ -1,76 +1,57 @@
 // src/services/jawabanPgService.ts
 
-import type { JawabanPg } from "@/types/quiz";
-import prisma from "@/lib/prisma";
+import type { PrismaClient } from "@prisma/client";
 import { ApiError } from "@/lib/errors";
+import prisma from "@/lib/prisma";
 import { unstable_cache } from "next/cache";
-import { PrismaClient } from "@prisma/client";
 
-type CreateJawabanPgInput = Omit<JawabanPg, "id" | "isCorrect" | "nilai">;
+interface CreateJawabanPgInput {
+  studentId: string;
+  soalId: string;
+  jawaban: number;
+}
 
-export async function createJawabanPg(data: CreateJawabanPgInput): Promise<JawabanPg> {
+type TransactionClient = Omit<
+  PrismaClient,
+  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
+>;
+
+export async function createJawabanPg(
+  data: CreateJawabanPgInput, 
+  tx: TransactionClient = prisma
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
   try {
-    // Verify soal exists and is active
-    const soal = await prisma.soalPg.findUnique({
+    // Get soal to verify answer
+    const soal = await tx.soalPg.findUnique({
       where: { id: data.soalId },
-      select: { status: true, kunciJawaban: true }
+      select: { kunciJawaban: true, status: true }
     });
 
     if (!soal || !soal.status) {
       throw new ApiError("NOT_FOUND", "Soal tidak ditemukan atau tidak aktif", 404);
     }
 
-    // Start transaction
-    return await prisma.$transaction(async (tx) => {
-      // Set previous attempts to not latest
-      await tx.jawabanPg.updateMany({
-        where: {
-          studentId: data.studentId,
-          soalId: data.soalId,
-          latestAttempt: true
-        },
-        data: {
-          latestAttempt: false
-        }
-      });
+    // Calculate if answer is correct
+    const isCorrect = data.jawaban === soal.kunciJawaban;
+    const nilai = isCorrect ? 1 : 0;
 
-      // Get attempt count
-      const prevAttempt = await tx.jawabanPg.findFirst({
-        where: {
-          studentId: data.studentId,
-          soalId: data.soalId
-        },
-        orderBy: {
-          attemptCount: 'desc'
-        },
-        select: {
-          attemptCount: true
-        }
-      });
-
-      // Calculate if answer is correct
-      const isCorrect = data.jawaban === soal.kunciJawaban;
-      const nilai = isCorrect ? 1 : 0;
-
-      // Create new answer
-      const jawaban = await tx.jawabanPg.create({
-        data: {
-          studentId: data.studentId,
-          soalId: data.soalId,
-          jawaban: data.jawaban,
-          isCorrect,
-          nilai,
-          attemptCount: (prevAttempt?.attemptCount ?? 0) + 1,
-          latestAttempt: true
-        }
-      });
-
-      // Update student's average PG score using only latest attempts
-      await updateStudentPgScore(data.studentId, tx as PrismaClient);
-
-      return jawaban;
+    // Update the answer with score
+    const jawaban = await tx.jawabanPg.update({
+      where: {
+        id: data.soalId,
+        AND: [
+          { studentId: data.studentId },
+          { latestAttempt: true }
+        ]
+      },
+      data: {
+        isCorrect,
+        nilai
+      }
     });
 
+    return jawaban;
   } catch (e) {
     if (e instanceof ApiError) throw e;
     console.error("Create Jawaban PG Error:", e);
@@ -78,8 +59,10 @@ export async function createJawabanPg(data: CreateJawabanPgInput): Promise<Jawab
   }
 }
 
-async function updateStudentPgScore(studentId: string, tx = prisma): Promise<void> {
-  // Calculate average score only from latest attempts
+export async function updateStudentPgScore(
+  studentId: string, 
+  tx: TransactionClient = prisma
+): Promise<void> {
   const avgScore = await tx.jawabanPg.aggregate({
     where: { 
       studentId,
@@ -98,9 +81,11 @@ export const getStudentPgAnswers = unstable_cache(
   async (studentId: string, quizId?: string) => {
     const where = {
       studentId,
-      soalRef: quizId ? {
-        quizId
-      } : undefined
+      soalRef: quizId
+        ? {
+            quizId,
+          }
+        : undefined,
     };
 
     return prisma.jawabanPg.findMany({
@@ -109,15 +94,15 @@ export const getStudentPgAnswers = unstable_cache(
         soalRef: {
           select: {
             pertanyaan: true,
-            quizId: true
-          }
-        }
-      }
+            quizId: true,
+          },
+        },
+      },
     });
   },
-  ['student-pg-answers'],
+  ["student-pg-answers"],
   {
     revalidate: 60,
-    tags: ['jawaban-pg']
+    tags: ["jawaban-pg"],
   }
 );
