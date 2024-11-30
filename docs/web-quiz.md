@@ -1,32 +1,62 @@
-# Quiz Management API
+# Quiz Management API Documentation
 
-## Quiz Endpoints
+## Base URL & Authentication
+- Base URL: `/api/v1/quiz`
+- Required Headers:
+  - Cookie: `admin-token` (JWT token)
+  - X-CSRF-Token: `<csrf_token>` (untuk request mutasi)
+
+## Quiz Management Endpoints
 
 ### List Quiz
-```
+```http
 GET /api/v1/quiz
-Query: ?search=string&type=MULTIPLE_CHOICE|ESSAY&materiId=string&page=1&limit=10&sortBy=judul&sortOrder=asc&status=boolean
+```
+Query Parameters:
+- search (string, optional): Filter by quiz title/description
+- type (string, optional): "MULTIPLE_CHOICE" | "ESSAY"
+- materiId (string, optional): Filter by materi ID
+- page (number, optional): Page number, default 1
+- limit (number, optional): Items per page, default 10
+- sortBy (string, optional): "judul" | "type" | "status", default "judul"
+- sortOrder (string, optional): "asc" | "desc", default "asc"
+- status (boolean, optional): true | false, default true
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "quizzes": [{
+      "id": "string",
+      "judul": "string",
+      "deskripsi": "string",
+      "type": "MULTIPLE_CHOICE" | "ESSAY",
+      "status": true,
+      "materiId": "string",
+      "_count": {
+        "soalPg": 0,
+        "soalEssay": 0
+      }
+    }],
+    "total": 0,
+    "stats": {
+      "total": 0,
+      "multipleChoice": 0,
+      "essay": 0,
+      "active": 0
+    }
+  }
+}
 ```
 
 ### Get Single Quiz
-```
+```http
 GET /api/v1/quiz/{quizId}
 ```
 
-### Create Quiz
-```
-POST /api/v1/quiz
-
-Input:
-{
-  "judul": "string",
-  "deskripsi": "string",
-  "type": "MULTIPLE_CHOICE" | "ESSAY",
-  "status": boolean,
-  "materiId": "string"
-}
-
 Response:
+```json
 {
   "success": true,
   "data": {
@@ -34,152 +64,143 @@ Response:
     "judul": "string",
     "deskripsi": "string",
     "type": "MULTIPLE_CHOICE" | "ESSAY",
-    "status": boolean,
-    "materiId": "string"
+    "status": true,
+    "materiId": "string",
+    "soalPg": [], // If type is MULTIPLE_CHOICE
+    "soalEssay": [] // If type is ESSAY
   }
 }
 ```
 
-### Update Quiz
+### Create Quiz
+```http
+POST /api/v1/quiz
 ```
-PATCH /api/v1/quiz/{quizId}
-
-Input: (semua field optional)
+Request Body:
+```json
 {
   "judul": "string",
   "deskripsi": "string",
-  "status": boolean
+  "type": "MULTIPLE_CHOICE" | "ESSAY",
+  "materiId": "string",
+  "status": true
+}
+```
+
+### Update Quiz
+```http
+PATCH /api/v1/quiz/{quizId}
+```
+Request Body (all fields optional):
+```json
+{
+  "judul": "string",
+  "deskripsi": "string",
+  "status": true
 }
 ```
 
 ### Delete Quiz
-```
+```http
 DELETE /api/v1/quiz/{quizId}
 ```
 
-## Soal PG (Multiple Choice) Endpoints
+## Soal Management Endpoints
 
 ### List Soal PG
-```
+```http
 GET /api/v1/quiz/{quizId}/soal-pg
 Query: ?status=boolean
 ```
 
 ### Create Soal PG
-```
+```http
 POST /api/v1/quiz/{quizId}/soal-pg
-
-Input:
+```
+Request Body:
+```json
 {
   "pertanyaan": "string",
   "opsiJawaban": ["string"],
-  "kunciJawaban": number,
-  "status": boolean
-}
-
-Response:
-{
-  "success": true,
-  "data": {
-    "id": "string",
-    "pertanyaan": "string",
-    "opsiJawaban": ["string"],
-    "kunciJawaban": number,
-    "status": boolean,
-    "quizId": "string"
-  }
+  "kunciJawaban": 0,
+  "status": true
 }
 ```
 
 ### Update Soal PG
-```
+```http
 PATCH /api/v1/quiz/{quizId}/soal-pg/{soalId}
-
-Input: (semua field optional)
+```
+Request Body (all fields optional):
+```json
 {
   "pertanyaan": "string",
   "opsiJawaban": ["string"],
-  "kunciJawaban": number,
-  "status": boolean
+  "kunciJawaban": 0,
+  "status": true
 }
 ```
 
 ### Delete Soal PG
-```
+```http
 DELETE /api/v1/quiz/{quizId}/soal-pg/{soalId}
 ```
 
-## Soal Essay Endpoints
-
 ### List Soal Essay
-```
+```http
 GET /api/v1/quiz/{quizId}/soal-essay
 Query: ?status=boolean
 ```
 
 ### Create Soal Essay
-```
+```http
 POST /api/v1/quiz/{quizId}/soal-essay
-
-Input:
+```
+Request Body:
+```json
 {
   "pertanyaan": "string",
-  "status": boolean
-}
-
-Response:
-{
-  "success": true,
-  "data": {
-    "id": "string",
-    "pertanyaan": "string",
-    "status": boolean,
-    "quizId": "string"
-  }
+  "status": true
 }
 ```
 
 ### Update Soal Essay
-```
+```http
 PATCH /api/v1/quiz/{quizId}/soal-essay/{soalId}
-
-Input: (semua field optional)
+```
+Request Body (all fields optional):
+```json
 {
   "pertanyaan": "string",
-  "status": boolean
+  "status": true
 }
 ```
 
 ### Delete Soal Essay
-```
+```http
 DELETE /api/v1/quiz/{quizId}/soal-essay/{soalId}
 ```
 
-## Response Formats
-
-### Success Response Format
-```json
-{
-  "success": true,
-  "data": {},
-  "message": "string"
-}
-```
-
-### Error Response Format
+## Error Responses
+All endpoints return error responses in format:
 ```json
 {
   "success": false,
-  "error": "string",
-  "details": [] // For validation errors
+  "error": "Error message",
+  "details": [] // Optional validation errors
 }
 ```
 
+Common Status Codes:
+- 400: Bad Request / Validation Error
+- 401: Unauthorized
+- 403: Forbidden (CSRF)
+- 404: Not Found
+- 500: Internal Server Error
+
 ## Notes
-- Semua request memerlukan token admin dalam cookie (`admin-token`)
-- Semua request mutasi (POST/PATCH/DELETE) memerlukan CSRF token dalam header `X-CSRF-Token`
-- Field `type` pada quiz tidak bisa diubah setelah dibuat
-- `kunciJawaban` pada soal PG adalah index dari array `opsiJawaban` (0-based)
-- Soal PG hanya bisa dibuat untuk quiz dengan type `MULTIPLE_CHOICE`
-- Soal Essay hanya bisa dibuat untuk quiz dengan type `ESSAY`
-- Penghapusan quiz akan menghapus semua soal yang terkait
+- Quiz type (MULTIPLE_CHOICE/ESSAY) cannot be changed after creation
+- All mutations require valid CSRF token
+- Deleting a quiz will cascade delete all related soal
+- Soal PG can only be created for MULTIPLE_CHOICE quiz
+- Soal Essay can only be created for ESSAY quiz

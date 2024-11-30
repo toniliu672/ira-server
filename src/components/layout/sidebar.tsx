@@ -12,6 +12,7 @@ import {
   Menu,
   Book,
   X,
+  LucideBookmarkMinus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,7 +65,7 @@ const navItems: NavItem[] = [
   {
     title: "Quiz",
     href: "/admin/quiz",
-    icon: Users,
+    icon: LucideBookmarkMinus,
   },
 ];
 

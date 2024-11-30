@@ -1,72 +1,63 @@
-# Quiz Admin API Documentation
+# Quiz Assessment API Documentation
 
-## Overview
-API ini digunakan untuk mengelola hasil quiz dan penilaian oleh admin. Semua endpoint memerlukan:
-- Token admin dalam cookie (`admin-token`)
-- CSRF token dalam header (`X-CSRF-Token`) untuk request POST
+## Base URL & Authentication
 - Base URL: `/api/v1/quiz`
+- Required Headers:
+  - Cookie: `admin-token` (JWT token)
+  - X-CSRF-Token: `<csrf_token>` (untuk request mutasi)
 
-## Endpoints
+## Quiz Results & Assessment Endpoints
 
-### 1. List Quiz Results
-Mendapatkan daftar hasil quiz dari semua siswa yang mengerjakan quiz tertentu.
-
-```
+### List Quiz Results
+```http
 GET /api/v1/quiz/{quizId}/results
 ```
+Query Parameters:
+- search (string, optional): Search by student name/username
+- status (string, optional): "GRADED" | "UNGRADED" (for essay only)
+- page (number, optional): Page number, default 1
+- limit (number, optional): Items per page, default 10
+- sortBy (string, optional): Default "fullName"
+- sortOrder (string, optional): "asc" | "desc", default "asc"
 
-#### Query Parameters
-| Parameter  | Type    | Required | Description                                  |
-|------------|---------|----------|----------------------------------------------|
-| search     | string  | No       | Cari berdasarkan nama/username siswa        |
-| status     | string  | No       | Filter status: "GRADED"/"UNGRADED" (essay) |
-| page       | number  | No       | Halaman (default: 1)                        |
-| limit      | number  | No       | Jumlah item per halaman (default: 10)       |
-| sortBy     | string  | No       | Field untuk sorting (default: "fullName")    |
-| sortOrder  | string  | No       | Urutan: "asc"/"desc" (default: "asc")       |
-
-#### Response Success
+Response:
 ```json
 {
   "success": true,
   "data": {
-    "results": [
-      {
-        "student": {
-          "id": "string",
-          "username": "string",
-          "name": "string"
-        },
-        "quiz": {
-          "id": "string", 
-          "title": "string",
-          "type": "MULTIPLE_CHOICE | ESSAY"
-        },
-        "scores": {
-          "answered": 5,
-          "avgScore": 80,
-          "isComplete": true
-        },
-        "submittedAt": "2024-01-01T00:00:00Z"
-      }
-    ],
+    "results": [{
+      "student": {
+        "id": "string",
+        "username": "string",
+        "name": "string"
+      },
+      "quiz": {
+        "id": "string",
+        "title": "string",
+        "type": "MULTIPLE_CHOICE" | "ESSAY"
+      },
+      "scores": {
+        "answered": 0,
+        "avgScore": 0,
+        "isComplete": true
+      },
+      "submittedAt": "string"
+    }],
     "pagination": {
-      "total": 20,
+      "total": 0,
       "page": 1,
-      "totalPages": 2
+      "totalPages": 1
     }
   }
 }
 ```
 
-### 2. Get Student Quiz Result Detail
-Melihat detail jawaban quiz seorang siswa.
-
-```
+### Get Student Quiz Results
+```http
 GET /api/v1/quiz/{quizId}/results/{studentId}
 ```
 
-#### Response Success
+Response:
 ```json
 {
   "success": true,
@@ -74,95 +65,69 @@ GET /api/v1/quiz/{quizId}/results/{studentId}
     "quiz": {
       "id": "string",
       "judul": "string",
-      "type": "MULTIPLE_CHOICE | ESSAY"
+      "type": "MULTIPLE_CHOICE" | "ESSAY"
     },
-    "answers": [
-      // Untuk Multiple Choice
-      {
-        "id": "string",
-        "soalId": "string",
+    "answers": [{
+      "id": "string",
+      "soalRef": {
         "pertanyaan": "string",
-        "jawaban": 0,
-        "isCorrect": true,
-        "nilai": 1
+        "quizId": "string"
       },
-      // Untuk Essay
-      {
-        "id": "string",
-        "soalId": "string",
-        "pertanyaan": "string",
-        "jawaban": "string",
-        "nilai": 80,
-        "feedback": "string"
-      }
-    ]
+      "jawaban": "string", // For essay
+      "nilai": 0, // 0-100 for essay, 0-1 for PG
+      "feedback": "string", // For essay only
+      "isCorrect": true // For PG only
+    }]
   }
 }
 ```
 
-### 3. Grade Essay Answers
-Memberikan nilai untuk jawaban essay.
-
+### Grade Essay Answer
+```http
+POST /api/v1/quiz/{quizId}/results/{studentId}/grade/{answerId}
 ```
-POST /api/v1/quiz/{quizId}/essays/grade
-```
-
-#### Request Headers
-```
-X-CSRF-Token: <csrf_token>
-```
-
-#### Request Body
+Request Body:
 ```json
 {
-  "answers": [
-    {
-      "jawabanId": "string",
-      "nilai": 80,
-      "feedback": "string" // Optional
-    }
-  ]
+  "nilai": 0, // 0-100
+  "feedback": "string" // Optional
 }
 ```
 
-#### Response Success
+Response:
 ```json
 {
   "success": true,
-  "message": "Penilaian berhasil disimpan",
   "data": {
-    "updatedAnswers": [
-      {
-        "id": "string",
-        "nilai": 80,
-        "feedback": "string"
-      }
-    ]
-  }
+    "id": "string",
+    "nilai": 0,
+    "feedback": "string"
+  },
+  "message": "Nilai berhasil disimpan"
 }
 ```
 
 ## Error Responses
-
-Semua endpoint akan mengembalikan response error dengan format:
-
+All endpoints return error responses in format:
 ```json
 {
   "success": false,
   "error": "Error message",
-  "details": [] // Optional, untuk validation errors
+  "details": [] // Optional validation errors
 }
 ```
 
-### Common Error Codes
-- 400: Bad Request (validation error)
-- 401: Unauthorized (token tidak valid)
-- 403: Forbidden (CSRF token tidak valid)
+Common Status Codes:
+- 400: Bad Request / Validation Error
+- 401: Unauthorized
+- 403: Forbidden (CSRF)
 - 404: Not Found
 - 500: Internal Server Error
 
 ## Notes
-- Untuk quiz tipe Multiple Choice, nilai dihitung otomatis saat siswa submit jawaban
-- Untuk quiz tipe Essay, admin perlu memberikan nilai manual (0-100)
-- Status "GRADED"/"UNGRADED" hanya berlaku untuk quiz Essay
-- Hasil quiz di-cache selama 60 detik untuk optimasi performa
+- PG answers are auto-graded (0-1)
+- Essay answers need manual grading (0-100)
+- Results are cached for 60 seconds
+- All mutations require valid CSRF token
+- Essay answers can have optional feedback
+- Average scores are automatically calculated after grading
