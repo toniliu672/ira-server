@@ -2,11 +2,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { z } from "zod";
 import { verifyJWT } from "@/lib/auth";
 import { getMateri, getMateriStats, createMateri } from "@/services/materiService";
 import { ApiError } from "@/lib/errors";
-import { materiSchema } from "@/types/materi";
+import { materiCreateSchema } from "@/types/materi";
+import { z } from "zod";
 
 export async function GET(request: NextRequest) {
   try {
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const validatedData = materiSchema.parse(body);
+    const validatedData = materiCreateSchema.parse(body);
     
     const materi = await createMateri(validatedData);
 

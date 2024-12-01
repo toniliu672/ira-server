@@ -44,7 +44,9 @@ import type { Materi } from "@/types/materi";
 export default function MateriPage() {
   const router = useRouter();
   const [materi, setMateri] = useState<Materi[]>([]);
-  const [, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null); // untuk track item yang sedang dihapus
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [showDialog, setShowDialog] = useState(false);
@@ -56,14 +58,11 @@ export default function MateriPage() {
     urutan: 1,
   });
 
-  // Fetch materi with caching
   const fetchMateri = async () => {
+    setIsLoading(true);
     try {
       const response = await fetch(
-        `/api/v1/materi?search=${search}&page=${page}&limit=10`,
-        {
-          next: { tags: ["materi"] },
-        }
+        `/api/v1/materi?search=${search}&page=${page}&limit=10`
       );
       const data = await response.json();
       if (data.success) {
@@ -72,7 +71,7 @@ export default function MateriPage() {
     } catch (error) {
       console.error("Error fetching materi:", error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -82,6 +81,7 @@ export default function MateriPage() {
 
   const handleCreate = async () => {
     try {
+      setIsSubmitting(true);
       const csrfToken = getCSRFToken();
       const response = await fetch("/api/v1/materi", {
         method: "POST",
@@ -91,6 +91,8 @@ export default function MateriPage() {
         },
         body: JSON.stringify(formData),
       });
+
+      const data = await response.json();
 
       if (response.ok) {
         setShowDialog(false);
@@ -102,14 +104,24 @@ export default function MateriPage() {
           status: true,
           urutan: 1,
         });
+      } else {
+        throw new Error(data.error || "Gagal membuat materi");
       }
     } catch (error) {
       console.error("Error creating materi:", error);
+      alert(error instanceof Error ? error.message : "Terjadi kesalahan");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm("Apakah Anda yakin ingin menghapus materi ini?")) {
+      return;
+    }
+
     try {
+      setIsDeleting(id);
       const csrfToken = getCSRFToken();
       const response = await fetch(`/api/v1/materi/${id}`, {
         method: "DELETE",
@@ -118,13 +130,29 @@ export default function MateriPage() {
         },
       });
 
+      const data = await response.json();
+
       if (response.ok) {
         fetchMateri();
+      } else {
+        throw new Error(data.error || "Gagal menghapus materi");
       }
     } catch (error) {
       console.error("Error deleting materi:", error);
+      alert(error instanceof Error ? error.message : "Terjadi kesalahan");
+    } finally {
+      setIsDeleting(null);
     }
   };
+
+  // Loading skeleton for table rows
+  const LoadingSkeleton = () => (
+    <TableRow>
+      <TableCell colSpan={4}>
+        <div className="w-full h-12 animate-pulse bg-gray-100 rounded-md dark:bg-gray-800" />
+      </TableCell>
+    </TableRow>
+  );
 
   return (
     <div className="container mx-auto py-6">
@@ -200,7 +228,16 @@ export default function MateriPage() {
                 />
                 <Label htmlFor="status">Status Aktif</Label>
               </div>
-              <Button onClick={handleCreate}>Simpan</Button>
+              <Button onClick={handleCreate} disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-gray-200 border-t-gray-600 rounded-full animate-spin" />
+                    Menyimpan...
+                  </div>
+                ) : (
+                  "Simpan"
+                )}
+              </Button>{" "}
             </div>
           </DialogContent>
         </Dialog>
@@ -212,10 +249,12 @@ export default function MateriPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
+          disabled={isLoading}
         />
         <Select
           value={page.toString()}
           onValueChange={(value) => setPage(parseInt(value))}
+          disabled={isLoading}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Halaman" />
@@ -241,47 +280,64 @@ export default function MateriPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {materi.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell>{item.judul}</TableCell>
-                <TableCell>{item.urutan}</TableCell>
-                <TableCell>
-                  {item.status ? "Aktif" : "Tidak Aktif"}
-                </TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        •••
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Aksi</DropdownMenuLabel>
-                      <DropdownMenuItem
-                        onClick={() =>
-                          router.push(`/admin/materi/${item.id}`)
-                        }
-                      >
-                        Detail
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() =>
-                          router.push(`/admin/materi/${item.id}/edit`)
-                        }
-                      >
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-red-600"
-                        onClick={() => handleDelete(item.id!)}
-                      >
-                        Hapus
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            {isLoading ? (
+              // Show loading skeletons
+              [...Array(5)].map((_, i) => <LoadingSkeleton key={i} />)
+            ) : materi.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center py-8">
+                  Tidak ada data materi
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              materi.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>{item.judul}</TableCell>
+                  <TableCell>{item.urutan}</TableCell>
+                  <TableCell>{item.status ? "Aktif" : "Tidak Aktif"}</TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={isDeleting === item.id}
+                        >
+                          {isDeleting === item.id ? (
+                            <div className="w-4 h-4 border-2 border-gray-200 border-t-gray-600 rounded-full animate-spin" />
+                          ) : (
+                            "•••"
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            router.push(`/admin/materi/${item.id}`)
+                          }
+                        >
+                          Detail
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            router.push(`/admin/materi/${item.id}/edit`)
+                          }
+                        >
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-red-600"
+                          onClick={() => handleDelete(item.id!)}
+                        >
+                          Hapus
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
