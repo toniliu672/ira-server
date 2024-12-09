@@ -10,9 +10,13 @@ import { ApiError } from "@/lib/errors";
 import { quizSchema } from "@/types/quiz";
 import { revalidateTag } from "next/cache";
 
+type RouteContext = {
+  params: Promise<{ quizId: string }>;
+};
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: { quizId: string } }
+  context: RouteContext
 ) {
   try {
     const cookieStore = await cookies();
@@ -24,7 +28,7 @@ export async function GET(
 
     await verifyJWT(token);
 
-    const { quizId } = params;
+    const { quizId } = await context.params;
     const quiz = await getQuizById(quizId);
     
     if (!quiz) {
@@ -51,7 +55,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { quizId: string } }
+  context: RouteContext
 ) {
   try {
     const cookieStore = await cookies();
@@ -71,7 +75,7 @@ export async function PATCH(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
-    const { quizId } = params;
+    const { quizId } = await context.params;
     
     // Check if quiz exists before updating
     const existingQuiz = await getQuizById(quizId);
@@ -120,7 +124,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { quizId: string } }
+  context: RouteContext
 ) {
   try {
     const cookieStore = await cookies();
@@ -140,7 +144,7 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
-    const { quizId } = params;
+    const { quizId } = await context.params;
 
     // Check if quiz exists before deleting
     const existingQuiz = await getQuizById(quizId);
