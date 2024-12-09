@@ -6,12 +6,13 @@ import { verifyJWT } from "@/lib/auth";
 import { ApiError } from "@/lib/errors";
 import prisma from "@/lib/prisma";
 
-type RouteContext = {
+// Update type definition to match Next.js requirement
+interface RouteParams {
   params: {
     quizId: string;
     studentId: string;
   }
-};
+}
 
 interface SoalPgRef {
   pertanyaan: string;
@@ -48,7 +49,7 @@ function isPgAnswer(answer: JawabanPg | JawabanEssay): answer is JawabanPg {
 
 export async function GET(
   request: NextRequest,
-  context: RouteContext
+  { params }: RouteParams  // Update parameter type
 ) {
   try {
     const cookieStore = await cookies();
@@ -60,9 +61,9 @@ export async function GET(
 
     await verifyJWT(token);
 
-    const { quizId, studentId } = context.params;
+    const { quizId, studentId } = params;  // Access params directly
 
-    // Get quiz first to know the type
+    // Rest of the code remains exactly the same
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId },
       select: { type: true }
@@ -72,7 +73,6 @@ export async function GET(
       throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
     }
 
-    // Get all answers without pagination
     const answers = quiz.type === "MULTIPLE_CHOICE" 
       ? await prisma.jawabanPg.findMany({
           where: {
@@ -113,7 +113,6 @@ export async function GET(
           }
         });
 
-    // For multiple choice, transform the data to include answer texts
     const transformedAnswers = quiz.type === "MULTIPLE_CHOICE"
       ? (answers as JawabanPg[]).map(answer => ({
           ...answer,
