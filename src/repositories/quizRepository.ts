@@ -8,9 +8,20 @@ import type { QuizFilters } from "@/types/quiz";
 export class QuizRepository {
   async findById(id: string) {
     try {
-      return await prisma.quiz.findUnique({
-        where: { id },
+      const quiz = await prisma.quiz.findFirst({
+        where: { 
+          id,
+          materiRef: {
+            status: true
+          }
+        },
         include: {
+          materiRef: {
+            select: {
+              judul: true,
+              status: true
+            }
+          },
           soalPg: {
             where: { status: true },
             orderBy: { id: "asc" },
@@ -21,6 +32,12 @@ export class QuizRepository {
           },
         },
       });
+
+      if (!quiz?.materiRef?.status) {
+        return null;
+      }
+
+      return quiz;
     } catch (e) {
       console.error("Repository Find Quiz By ID Error:", e);
       throw new ApiError("FETCH_FAILED", "Gagal mengambil data quiz", 500);
@@ -53,13 +70,24 @@ export class QuizRepository {
           type ? { type } : {},
           materiId ? { materiId } : {},
           { status },
+          {
+            materiRef: {
+              status: true
+            }
+          }
         ],
       };
 
-      const [quizzes, total] = await prisma.$transaction([
+      const [quizzes] = await prisma.$transaction([
         prisma.quiz.findMany({
           where,
           include: {
+            materiRef: {
+              select: {
+                judul: true,
+                status: true
+              }
+            },
             _count: {
               select: {
                 soalPg: true,
@@ -74,7 +102,13 @@ export class QuizRepository {
         prisma.quiz.count({ where }),
       ]);
 
-      return { quizzes, total };
+      // Filter out quizzes with inactive materi
+      const filteredQuizzes = quizzes.filter(quiz => quiz.materiRef.status);
+      
+      return { 
+        quizzes: filteredQuizzes, 
+        total: filteredQuizzes.length 
+      };
     } catch (e) {
       console.error("Repository Find Many Quizzes Error:", e);
       throw new ApiError("FETCH_FAILED", "Gagal mengambil data quiz", 500);
@@ -94,15 +128,18 @@ export class QuizRepository {
         );
       }
 
-      // Cek apakah materi exists
-      const materi = await prisma.materi.findUnique({
-        where: { id: materiId }
+      // Cek apakah materi exists dan aktif
+      const materi = await prisma.materi.findFirst({
+        where: { 
+          id: materiId,
+          status: true
+        }
       });
 
       if (!materi) {
         throw new ApiError(
           "NOT_FOUND",
-          "Materi tidak ditemukan",
+          "Materi tidak ditemukan atau tidak aktif",
           404
         );
       }
@@ -117,7 +154,8 @@ export class QuizRepository {
         include: {
           materiRef: {
             select: {
-              judul: true
+              judul: true,
+              status: true
             }
           },
           _count: {
@@ -146,41 +184,47 @@ export class QuizRepository {
 
   async update(id: string, data: Prisma.QuizUpdateInput) {
     try {
+      // Check if quiz exists and materi is active
+      const existingQuiz = await this.findById(id);
+      if (!existingQuiz) {
+        throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+      }
+
       return await prisma.quiz.update({
         where: { id },
         data,
         include: {
+          materiRef: {
+            select: {
+              judul: true,
+              status: true
+            }
+          },
           soalPg: true,
           soalEssay: true,
         },
       });
     } catch (e) {
+      if (e instanceof ApiError) throw e;
       console.error("Repository Update Quiz Error:", e);
-
-      if (e instanceof Prisma.PrismaClientKnownRequestError) {
-        if (e.code === "P2025") {
-          throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
-        }
-      }
-
       throw new ApiError("UPDATE_FAILED", "Gagal mengupdate quiz", 500);
     }
   }
 
   async delete(id: string) {
     try {
+      // Check if quiz exists and materi is active
+      const existingQuiz = await this.findById(id);
+      if (!existingQuiz) {
+        throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+      }
+
       await prisma.quiz.delete({
         where: { id },
       });
     } catch (e) {
+      if (e instanceof ApiError) throw e;
       console.error("Repository Delete Quiz Error:", e);
-
-      if (e instanceof Prisma.PrismaClientKnownRequestError) {
-        if (e.code === "P2025") {
-          throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
-        }
-      }
-
       throw new ApiError("DELETE_FAILED", "Gagal menghapus quiz", 500);
     }
   }
@@ -188,10 +232,37 @@ export class QuizRepository {
   async getStats() {
     try {
       const [total, multipleChoice, essay, active] = await prisma.$transaction([
-        prisma.quiz.count(),
-        prisma.quiz.count({ where: { type: "MULTIPLE_CHOICE" } }),
-        prisma.quiz.count({ where: { type: "ESSAY" } }),
-        prisma.quiz.count({ where: { status: true } }),
+        prisma.quiz.count({
+          where: {
+            materiRef: {
+              status: true
+            }
+          }
+        }),
+        prisma.quiz.count({ 
+          where: { 
+            type: "MULTIPLE_CHOICE",
+            materiRef: {
+              status: true
+            }
+          } 
+        }),
+        prisma.quiz.count({ 
+          where: { 
+            type: "ESSAY",
+            materiRef: {
+              status: true
+            }
+          } 
+        }),
+        prisma.quiz.count({ 
+          where: { 
+            status: true,
+            materiRef: {
+              status: true
+            }
+          } 
+        }),
       ]);
 
       return { total, multipleChoice, essay, active };

@@ -8,10 +8,11 @@ import { verifyJWT } from "@/lib/auth";
 import { getQuizById, updateQuiz, deleteQuiz } from "@/services/quizService";
 import { ApiError } from "@/lib/errors";
 import { quizSchema } from "@/types/quiz";
+import { revalidateTag } from "next/cache";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ quizId: string }> }
+  { params }: { params: { quizId: string } }
 ) {
   try {
     const cookieStore = await cookies();
@@ -23,7 +24,7 @@ export async function GET(
 
     await verifyJWT(token);
 
-    const { quizId } = await params;
+    const { quizId } = params;
     const quiz = await getQuizById(quizId);
     
     if (!quiz) {
@@ -50,7 +51,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ quizId: string }> }
+  { params }: { params: { quizId: string } }
 ) {
   try {
     const cookieStore = await cookies();
@@ -70,7 +71,7 @@ export async function PATCH(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
-    const { quizId } = await params;
+    const { quizId } = params;
     
     // Check if quiz exists before updating
     const existingQuiz = await getQuizById(quizId);
@@ -86,6 +87,11 @@ export async function PATCH(
     const validatedData = quizSchema.partial().parse(updateData);
     
     const quiz = await updateQuiz(quizId, validatedData);
+
+    // Revalidate cache
+    revalidateTag("quiz-list");
+    revalidateTag("quiz-detail");
+    revalidateTag("quiz-stats");
 
     return NextResponse.json({
       success: true,
@@ -114,7 +120,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ quizId: string }> }
+  { params }: { params: { quizId: string } }
 ) {
   try {
     const cookieStore = await cookies();
@@ -134,7 +140,7 @@ export async function DELETE(
       throw new ApiError("FORBIDDEN", "Invalid CSRF token", 403);
     }
 
-    const { quizId } = await params;
+    const { quizId } = params;
 
     // Check if quiz exists before deleting
     const existingQuiz = await getQuizById(quizId);
@@ -143,6 +149,11 @@ export async function DELETE(
     }
 
     await deleteQuiz(quizId);
+
+    // Revalidate cache
+    revalidateTag("quiz-list");
+    revalidateTag("quiz-detail");
+    revalidateTag("quiz-stats");
 
     return NextResponse.json({
       success: true,

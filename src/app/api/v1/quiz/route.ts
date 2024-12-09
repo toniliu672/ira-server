@@ -1,10 +1,12 @@
 // src/app/api/v1/quiz/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { verifyJWT } from "@/lib/auth";
 import { getQuizzes, getQuizStats, createQuiz } from "@/services/quizService";
 import { ApiError } from "@/lib/errors";
+import { revalidateTag } from "next/cache";
 
 const createQuizSchema = z.object({
   judul: z.string().min(1, "Judul harus diisi"),
@@ -28,25 +30,43 @@ export async function GET(request: NextRequest) {
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get("search") || "";
-    const type = searchParams.get("type") as "MULTIPLE_CHOICE" | "ESSAY" | undefined;
+    const type = searchParams.get("type") as
+      | "MULTIPLE_CHOICE"
+      | "ESSAY"
+      | undefined;
     const materiId = searchParams.get("materiId") || undefined;
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
-    const sortBy = (searchParams.get("sortBy") || "judul") as "judul" | "type" | "status";
-    const sortOrder = (searchParams.get("sortOrder") || "asc") as "asc" | "desc";
+    const sortBy = (searchParams.get("sortBy") || "judul") as
+      | "judul"
+      | "type"
+      | "status";
+    const sortOrder = (searchParams.get("sortOrder") || "asc") as
+      | "asc"
+      | "desc";
     const status = searchParams.get("status") !== "false";
 
     const [quizList, stats] = await Promise.all([
-      getQuizzes({ search, type, materiId, page, limit, sortBy, sortOrder, status }),
-      getQuizStats()
+      getQuizzes({
+        search,
+        type,
+        materiId,
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+        status,
+      }),
+      getQuizStats(),
     ]);
 
     return NextResponse.json({
       success: true,
       data: {
-        ...quizList,
-        stats
-      }
+        quizzes: quizList.quizzes || [],
+        total: quizList.total || 0,
+        stats,
+      },
     });
   } catch (e) {
     if (e instanceof ApiError) {
@@ -83,39 +103,39 @@ export async function POST(request: NextRequest) {
 
     // Parse and validate request body
     const body = await request.json();
-    
+
     if (!body) {
       throw new ApiError("BAD_REQUEST", "Request body is required", 400);
     }
 
     const validatedData = createQuizSchema.parse(body);
 
-    // Transform data untuk service
-    const quizData = {
-      judul: validatedData.judul,
-      deskripsi: validatedData.deskripsi || null,
-      type: validatedData.type,
-      materiId: validatedData.materiId,
-      status: validatedData.status
-    };
-    
-    const quiz = await createQuiz(quizData);
+    const quiz = await createQuiz(validatedData);
 
-    return NextResponse.json({
-      success: true,
-      data: quiz,
-      message: "Quiz berhasil dibuat"
-    }, { status: 201 });
+    // Revalidate cache
+    revalidateTag("quiz-list");
+    revalidateTag("quiz-stats");
+
+    // src/app/api/v1/quiz/route.ts (continued)
+
+    return NextResponse.json(
+      {
+        success: true,
+        data: quiz,
+        message: "Quiz berhasil dibuat",
+      },
+      { status: 201 }
+    );
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: "Validation error", 
-          details: e.errors.map(err => ({
-            field: err.path.join('.'),
-            message: err.message
-          }))
+        {
+          success: false,
+          error: "Validation error",
+          details: e.errors.map((err) => ({
+            field: err.path.join("."),
+            message: err.message,
+          })),
         },
         { status: 400 }
       );

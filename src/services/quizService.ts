@@ -1,33 +1,47 @@
 // src/services/quizService.ts
 
-import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import type { Quiz, QuizFilters, QuizStats } from "@/types/quiz";
 import { quizRepository } from "@/repositories/quizRepository";
 import { ApiError } from "@/lib/errors";
 
-export const getQuizzes = cache(async (filters: QuizFilters) => {
-  try {
-    return await quizRepository.findMany(filters);
-  } catch (e) {
-    if (e instanceof ApiError) throw e;
-    console.error("Get Quizzes Error:", e);
-    throw new ApiError("FETCH_FAILED", "Gagal mengambil data quiz", 500);
-  }
-});
-
-export const getQuizById = cache(async (id: string): Promise<Quiz> => {
-  try {
-    const quiz = await quizRepository.findById(id);
-    if (!quiz) {
-      throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+export const getQuizzes = unstable_cache(
+  async (filters: QuizFilters) => {
+    try {
+      return await quizRepository.findMany(filters);
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+      console.error("Get Quizzes Error:", e);
+      throw new ApiError("FETCH_FAILED", "Gagal mengambil data quiz", 500);
     }
-    return quiz;
-  } catch (e) {
-    if (e instanceof ApiError) throw e;
-    console.error("Get Quiz By ID Error:", e);
-    throw new ApiError("FETCH_FAILED", "Gagal mengambil data quiz", 500);
+  },
+  ["quizzes"],
+  {
+    revalidate: 10,
+    tags: ["quiz-list"],
   }
-});
+);
+
+export const getQuizById = unstable_cache(
+  async (id: string): Promise<Quiz> => {
+    try {
+      const quiz = await quizRepository.findById(id);
+      if (!quiz) {
+        throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
+      }
+      return quiz;
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+      console.error("Get Quiz By ID Error:", e);
+      throw new ApiError("FETCH_FAILED", "Gagal mengambil data quiz", 500);
+    }
+  },
+  ["quiz-detail"],
+  {
+    revalidate: 10,
+    tags: ["quiz-detail"],
+  }
+);
 
 export const createQuiz = async (data: Quiz): Promise<Quiz> => {
   try {
@@ -35,7 +49,7 @@ export const createQuiz = async (data: Quiz): Promise<Quiz> => {
 
     const createInput = {
       ...quizData,
-      materiId, // Include materiId separately as required by repository
+      materiId,
     };
 
     const quiz = await quizRepository.create(createInput);
@@ -71,42 +85,18 @@ export const deleteQuiz = async (id: string): Promise<void> => {
   }
 };
 
-export const getQuizStats = cache(async (): Promise<QuizStats> => {
-  try {
-    return await quizRepository.getStats();
-  } catch (e) {
-    console.error("Get Quiz Stats Error:", e);
-    throw new ApiError("FETCH_FAILED", "Gagal mengambil statistik quiz", 500);
-  }
-});
-
-export const getRandomSoalPg = cache(
-  async (quizId: string, count: number = 10) => {
+export const getQuizStats = unstable_cache(
+  async (): Promise<QuizStats> => {
     try {
-      const quiz = await quizRepository.findById(quizId);
-      if (!quiz) {
-        throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
-      }
-
-      if (quiz.type !== "MULTIPLE_CHOICE") {
-        throw new ApiError(
-          "INVALID_TYPE",
-          "Quiz bukan tipe pilihan ganda",
-          400
-        );
-      }
-
-      // Get active soal and randomize
-      const activeSoal = quiz.soalPg.filter((soal) => soal.status);
-      const randomSoal = activeSoal
-        .sort(() => Math.random() - 0.5)
-        .slice(0, count);
-
-      return randomSoal;
+      return await quizRepository.getStats();
     } catch (e) {
-      if (e instanceof ApiError) throw e;
-      console.error("Get Random Soal PG Error:", e);
-      throw new ApiError("FETCH_FAILED", "Gagal mengambil soal quiz", 500);
+      console.error("Get Quiz Stats Error:", e);
+      throw new ApiError("FETCH_FAILED", "Gagal mengambil statistik quiz", 500);
     }
+  },
+  ["quiz-stats"],
+  {
+    revalidate: 30,
+    tags: ["quiz-stats"],
   }
 );
