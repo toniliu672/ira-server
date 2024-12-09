@@ -6,14 +6,6 @@ import { verifyJWT } from "@/lib/auth";
 import { ApiError } from "@/lib/errors";
 import prisma from "@/lib/prisma";
 
-// Update type definition to match Next.js requirement
-interface RouteParams {
-  params: {
-    quizId: string;
-    studentId: string;
-  }
-}
-
 interface SoalPgRef {
   pertanyaan: string;
   quizId: string;
@@ -44,12 +36,12 @@ interface JawabanEssay {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function isPgAnswer(answer: JawabanPg | JawabanEssay): answer is JawabanPg {
-  return 'opsiJawaban' in answer.soalRef;
+  return "opsiJawaban" in answer.soalRef;
 }
 
 export async function GET(
   request: NextRequest,
-  { params }: RouteParams  // Update parameter type
+  { params }: { params: Promise<{ quizId: string; studentId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -61,77 +53,81 @@ export async function GET(
 
     await verifyJWT(token);
 
-    const { quizId, studentId } = params;  // Access params directly
+    const { quizId, studentId } = await params;
 
-    // Rest of the code remains exactly the same
+    // Get quiz first to know the type
     const quiz = await prisma.quiz.findUnique({
       where: { id: quizId },
-      select: { type: true }
+      select: { type: true },
     });
 
     if (!quiz) {
       throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
     }
 
-    const answers = quiz.type === "MULTIPLE_CHOICE" 
-      ? await prisma.jawabanPg.findMany({
-          where: {
-            studentId,
-            soalRef: { quizId },
-            latestAttempt: true
-          },
-          orderBy: {
-            soalRef: { id: 'asc' }
-          },
-          include: {
-            soalRef: {
-              select: {
-                pertanyaan: true,
-                quizId: true,
-                opsiJawaban: true,
-                kunciJawaban: true
-              }
-            }
-          }
-        })
-      : await prisma.jawabanEssay.findMany({
-          where: {
-            studentId,
-            soalRef: { quizId },
-            latestAttempt: true
-          },
-          orderBy: {
-            soalRef: { id: 'asc' }
-          },
-          include: {
-            soalRef: {
-              select: {
-                pertanyaan: true,
-                quizId: true
-              }
-            }
-          }
-        });
+    // Get all answers without pagination
+    const answers =
+      quiz.type === "MULTIPLE_CHOICE"
+        ? await prisma.jawabanPg.findMany({
+            where: {
+              studentId,
+              soalRef: { quizId },
+              latestAttempt: true,
+            },
+            orderBy: {
+              soalRef: { id: "asc" },
+            },
+            include: {
+              soalRef: {
+                select: {
+                  pertanyaan: true,
+                  quizId: true,
+                  opsiJawaban: true,
+                  kunciJawaban: true,
+                },
+              },
+            },
+          })
+        : await prisma.jawabanEssay.findMany({
+            where: {
+              studentId,
+              soalRef: { quizId },
+              latestAttempt: true,
+            },
+            orderBy: {
+              soalRef: { id: "asc" },
+            },
+            include: {
+              soalRef: {
+                select: {
+                  pertanyaan: true,
+                  quizId: true,
+                },
+              },
+            },
+          });
 
-    const transformedAnswers = quiz.type === "MULTIPLE_CHOICE"
-      ? (answers as JawabanPg[]).map(answer => ({
-          ...answer,
-          jawabanText: answer.soalRef.opsiJawaban[answer.jawaban],
-          kunciJawabanText: answer.soalRef.opsiJawaban[answer.soalRef.kunciJawaban]
-        }))
-      : answers;
+    // For multiple choice, transform the data to include answer texts
+    const transformedAnswers =
+      quiz.type === "MULTIPLE_CHOICE"
+        ? (answers as JawabanPg[]).map((answer) => ({
+            ...answer,
+            jawabanText: answer.soalRef.opsiJawaban[answer.jawaban],
+            kunciJawabanText:
+              answer.soalRef.opsiJawaban[answer.soalRef.kunciJawaban],
+          }))
+        : answers;
 
     return NextResponse.json({
       success: true,
       data: {
         quiz: {
           id: quizId,
-          type: quiz.type
+          type: quiz.type,
         },
-        answers: transformedAnswers
-      }
+        answers: transformedAnswers,
+      },
     });
-
   } catch (e) {
     if (e instanceof ApiError) {
       return NextResponse.json(
