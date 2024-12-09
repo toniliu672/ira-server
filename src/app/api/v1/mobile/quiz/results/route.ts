@@ -26,6 +26,18 @@ interface QuizResultData {
   submittedAt: Date | null;
 }
 
+interface MobileQuizResult {
+  quizId: string;
+  quizTitle: string;
+  type: QuizType;
+  score: number;
+  progress: {
+    completed: number;
+    isComplete: boolean;
+    lastSubmitted: string | null;
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Auth validation
@@ -52,7 +64,7 @@ export async function GET(request: NextRequest) {
       throw new ApiError("BAD_REQUEST", "Materi ID diperlukan", 400);
     }
 
-    // Get all quiz results for the student with materiId filter
+    // Get quiz results
     const { results } = await getQuizResults(materiId, {
       search: payload.sub,
       type,
@@ -60,20 +72,30 @@ export async function GET(request: NextRequest) {
       sortOrder: 'desc'
     });
 
-    // Format and return results
+    // Format results for mobile
+    const formattedResults: MobileQuizResult[] = results.map((result: QuizResultData) => ({
+      quizId: result.quiz.id,
+      quizTitle: result.quiz.title,
+      type: result.quiz.type,
+      score: Math.round(result.scores.avgScore * 100) / 100,
+      progress: {
+        completed: result.scores.answered,
+        isComplete: result.scores.isComplete,
+        lastSubmitted: result.submittedAt ? new Date(result.submittedAt).toISOString() : null
+      }
+    }));
+
+    // Sort by completion status and then by title
+    const sortedResults = formattedResults.sort((a, b) => {
+      if (a.progress.isComplete === b.progress.isComplete) {
+        return a.quizTitle.localeCompare(b.quizTitle);
+      }
+      return a.progress.isComplete ? -1 : 1;
+    });
+
     return NextResponse.json({
       success: true,
-      data: results.map((result: QuizResultData) => ({
-        quizId: result.quiz.id,
-        quizTitle: result.quiz.title,
-        type: result.quiz.type,
-        score: Math.round(result.scores.avgScore * 100) / 100,
-        progress: {
-          completed: result.scores.answered,
-          isComplete: result.scores.isComplete,
-          lastSubmitted: result.submittedAt
-        }
-      }))
+      data: sortedResults
     });
 
   } catch (e) {

@@ -41,9 +41,12 @@ export function SoalPgTable({ quizId }: SoalPgTableProps) {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({
+        sortBy: 'createdAt',
+        sortOrder: 'desc'
+      });
       if (search) params.set("search", search);
-      
+
       const res = await fetch(`/api/v1/quiz/${quizId}/soal-pg?${params}`);
       const json = await res.json();
       if (json.success) {
@@ -56,6 +59,10 @@ export function SoalPgTable({ quizId }: SoalPgTableProps) {
     }
   };
 
+  const handleDataChange = () => {
+    fetchData();
+  };
+
   const debouncedSearch = useDebounce((value: unknown) => {
     setSearch(value as string);
     fetchData();
@@ -66,6 +73,7 @@ export function SoalPgTable({ quizId }: SoalPgTableProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quizId]);
 
+  // Rest of the component stays the same
   return (
     <div className="space-y-4">
       <Input
@@ -78,6 +86,7 @@ export function SoalPgTable({ quizId }: SoalPgTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[60px]">No.</TableHead>
               <TableHead>Pertanyaan</TableHead>
               <TableHead>Opsi Jawaban</TableHead>
               <TableHead>Kunci Jawaban</TableHead>
@@ -88,19 +97,20 @@ export function SoalPgTable({ quizId }: SoalPgTableProps) {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center">
+                <TableCell colSpan={6} className="text-center">
                   Memuat data...
                 </TableCell>
               </TableRow>
             ) : !data?.length ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center">
+                <TableCell colSpan={6} className="text-center">
                   Belum ada soal
                 </TableCell>
               </TableRow>
             ) : (
-              data.map((soal: SoalPg) => (
+              data.map((soal: SoalPg, index: number) => (
                 <TableRow key={soal.id}>
+                  <TableCell className="font-medium">{index + 1}</TableCell>
                   <TableCell>{soal.pertanyaan}</TableCell>
                   <TableCell>
                     <ol className="list-decimal list-inside">
@@ -159,10 +169,7 @@ export function SoalPgTable({ quizId }: SoalPgTableProps) {
           soalId={selectedSoal}
           open={showEditDialog}
           onOpenChange={setShowEditDialog}
-          onSaved={() => {
-            setSelectedSoal("");
-            fetchData();
-          }}
+          onSaved={handleDataChange}
         />
       )}
 
@@ -173,10 +180,7 @@ export function SoalPgTable({ quizId }: SoalPgTableProps) {
           type="pg"
           open={showDeleteDialog}
           onOpenChange={setShowDeleteDialog}
-          onDeleted={() => {
-            setSelectedSoal("");
-            fetchData();
-          }}
+          onDeleted={handleDataChange}
         />
       )}
     </div>

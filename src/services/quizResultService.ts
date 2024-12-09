@@ -24,7 +24,7 @@ export const getQuizResults = unstable_cache(
         search = '',
         status,
         page = 1,
-        limit = 10,
+        limit = 100,
         sortOrder = 'asc'
       } = filters;
 

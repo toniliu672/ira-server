@@ -4,19 +4,53 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyJWT } from "@/lib/auth";
 import { ApiError } from "@/lib/errors";
-import { getQuizById } from "@/services/quizService";
-import { getStudentPgAnswers } from "@/services/jawabanPgService";
-import { getStudentEssayAnswers } from "@/services/jawabanEssayService";
+import prisma from "@/lib/prisma";
 
 type RouteContext = {
-  params: Promise<{ quizId: string; studentId: string }>;
+  params: {
+    quizId: string;
+    studentId: string;
+  }
 };
 
-export async function GET(request: NextRequest, context: RouteContext) {
-  try {
-    const { quizId, studentId } = await context.params;
+interface SoalPgRef {
+  pertanyaan: string;
+  quizId: string;
+  opsiJawaban: string[];
+  kunciJawaban: number;
+}
 
-    // Auth check
+interface SoalEssayRef {
+  pertanyaan: string;
+  quizId: string;
+}
+
+interface JawabanPg {
+  id: string;
+  jawaban: number;
+  isCorrect: boolean;
+  nilai: number;
+  soalRef: SoalPgRef;
+}
+
+interface JawabanEssay {
+  id: string;
+  jawaban: string;
+  nilai: number | null;
+  feedback: string | null;
+  soalRef: SoalEssayRef;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function isPgAnswer(answer: JawabanPg | JawabanEssay): answer is JawabanPg {
+  return 'opsiJawaban' in answer.soalRef;
+}
+
+export async function GET(
+  request: NextRequest,
+  context: RouteContext
+) {
+  try {
     const cookieStore = await cookies();
     const token = cookieStore.get("admin-token")?.value;
 
@@ -26,29 +60,79 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     await verifyJWT(token);
 
-    // Get quiz details
-    const quiz = await getQuizById(quizId);
+    const { quizId, studentId } = context.params;
+
+    // Get quiz first to know the type
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: { type: true }
+    });
+
     if (!quiz) {
       throw new ApiError("NOT_FOUND", "Quiz tidak ditemukan", 404);
     }
 
-    // Get student answers based on quiz type
-    const answers =
-      quiz.type === "MULTIPLE_CHOICE"
-        ? await getStudentPgAnswers(studentId, quizId)
-        : await getStudentEssayAnswers(studentId, quizId);
+    // Get all answers without pagination
+    const answers = quiz.type === "MULTIPLE_CHOICE" 
+      ? await prisma.jawabanPg.findMany({
+          where: {
+            studentId,
+            soalRef: { quizId },
+            latestAttempt: true
+          },
+          orderBy: {
+            soalRef: { id: 'asc' }
+          },
+          include: {
+            soalRef: {
+              select: {
+                pertanyaan: true,
+                quizId: true,
+                opsiJawaban: true,
+                kunciJawaban: true
+              }
+            }
+          }
+        })
+      : await prisma.jawabanEssay.findMany({
+          where: {
+            studentId,
+            soalRef: { quizId },
+            latestAttempt: true
+          },
+          orderBy: {
+            soalRef: { id: 'asc' }
+          },
+          include: {
+            soalRef: {
+              select: {
+                pertanyaan: true,
+                quizId: true
+              }
+            }
+          }
+        });
+
+    // For multiple choice, transform the data to include answer texts
+    const transformedAnswers = quiz.type === "MULTIPLE_CHOICE"
+      ? (answers as JawabanPg[]).map(answer => ({
+          ...answer,
+          jawabanText: answer.soalRef.opsiJawaban[answer.jawaban],
+          kunciJawabanText: answer.soalRef.opsiJawaban[answer.soalRef.kunciJawaban]
+        }))
+      : answers;
 
     return NextResponse.json({
       success: true,
       data: {
         quiz: {
-          id: quiz.id,
-          judul: quiz.judul,
-          type: quiz.type,
+          id: quizId,
+          type: quiz.type
         },
-        answers,
-      },
+        answers: transformedAnswers
+      }
     });
+
   } catch (e) {
     if (e instanceof ApiError) {
       return NextResponse.json(

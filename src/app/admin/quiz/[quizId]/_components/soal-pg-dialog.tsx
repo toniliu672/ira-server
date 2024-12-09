@@ -44,7 +44,9 @@ interface SoalPgDialogProps {
 
 const soalPgSchema = z.object({
   pertanyaan: z.string().min(1, "Pertanyaan harus diisi"),
-  opsiJawaban: z.array(z.string().min(1, "Opsi jawaban harus diisi")).min(2, "Minimal 2 opsi jawaban"),
+  opsiJawaban: z
+    .array(z.string().min(1, "Opsi jawaban harus diisi"))
+    .min(2, "Minimal 2 opsi jawaban"),
   kunciJawaban: z.string().min(0, "Kunci jawaban harus dipilih"),
   status: z.boolean().default(true),
 });
@@ -72,7 +74,7 @@ export function SoalPgDialog({
 }: SoalPgDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const form = useForm<FormValues>({
     resolver: zodResolver(soalPgSchema),
     defaultValues,
@@ -82,7 +84,6 @@ export function SoalPgDialog({
     control: form.control,
     name: "opsiJawaban",
   });
-
 
   useEffect(() => {
     if (soalId) {
@@ -106,20 +107,20 @@ export function SoalPgDialog({
   async function onSubmit(values: FormValues) {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const csrfToken = getCSRFToken();
-      
+
       const submitData = {
         ...values,
         kunciJawaban: parseInt(values.kunciJawaban),
-        opsiJawaban: values.opsiJawaban.map(opsi => opsi.trim()),
+        opsiJawaban: values.opsiJawaban.map((opsi) => opsi.trim()),
       };
 
-      const url = soalId 
+      const url = soalId
         ? `/api/v1/quiz/${quizId}/soal-pg/${soalId}`
         : `/api/v1/quiz/${quizId}/soal-pg`;
-        
+
       const method = soalId ? "PATCH" : "POST";
 
       const res = await fetch(url, {
@@ -134,8 +135,10 @@ export function SoalPgDialog({
       const data = await res.json();
 
       if (data.success) {
-        onSaved();
+        // Pastikan onSaved dipanggil sebelum menutup dialog
+        await onSaved();
         onOpenChange(false);
+        form.reset(defaultValues); // Reset form setelah berhasil
       } else {
         setError(data.error || "Gagal menyimpan soal");
       }
@@ -274,7 +277,7 @@ export function SoalPgDialog({
                 Batal
               </Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Menyimpan..." : (soalId ? "Simpan" : "Tambah")}
+                {isLoading ? "Menyimpan..." : soalId ? "Simpan" : "Tambah"}
               </Button>
             </div>
           </form>

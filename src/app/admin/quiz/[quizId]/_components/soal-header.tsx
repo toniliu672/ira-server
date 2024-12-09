@@ -11,10 +11,18 @@ import { Quiz } from "@/types/quiz";
 
 interface SoalHeaderProps {
   quiz: Quiz & { success: boolean };
+  onSoalAdded?: () => void;
 }
 
-export function SoalHeader({ quiz }: SoalHeaderProps) {
+export function SoalHeader({ quiz, onSoalAdded }: SoalHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+
+  const handleSoalSaved = async () => {
+    setShowCreateDialog(false);
+    if (onSoalAdded) {
+      onSoalAdded();
+    }
+  };
 
   return (
     <div className="flex items-center justify-between">
@@ -39,14 +47,14 @@ export function SoalHeader({ quiz }: SoalHeaderProps) {
           quizId={quiz.id || ""}
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
-          onSaved={() => setShowCreateDialog(false)}
+          onSaved={handleSoalSaved}
         />
       ) : (
         <SoalEssayDialog
           quizId={quiz.id || ""}
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
-          onSaved={() => setShowCreateDialog(false)}
+          onSaved={handleSoalSaved}
         />
       )}
     </div>
