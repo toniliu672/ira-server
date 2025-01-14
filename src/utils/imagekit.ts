@@ -8,69 +8,74 @@ const imageKit = new ImageKit({
   urlEndpoint: process.env.NEXT_PUBLIC_URL_ENDPOINT!,
 });
 
-// Fungsi untuk mendapatkan fileId dari URL path-nya
-export const getFileIdFromUrl = (url: string): string | null => {
-  try {
-    // URL dari ImageKit biasanya dalam format:
-    // https://ik.imagekit.io/{your_imagekit_id}/folder/filename.ext
-    const urlParts = url.split('/');
-    // Filename akan berada di akhir URL
-    const filename = urlParts[urlParts.length - 1];
-    return filename.split('.')[0]; // Mengambil nama file tanpa ekstensi sebagai fileId
-  } catch (error) {
-    console.error('Error extracting fileId from URL:', error);
-    return null;
-  }
-};
+// Store fileId when uploading
+interface UploadResponse {
+  url: string;
+  fileId: string;
+}
 
-// Fungsi untuk melakukan Basic Auth ke ImageKit API
-const getBasicAuthHeader = () => {
-  const privateKey = process.env.PRIVATE_KEY!;
-  const authString = Buffer.from(`${privateKey}:`).toString('base64');
-  return `Basic ${authString}`;
+export const uploadFile = async (
+  file: Buffer,
+  fileName: string,
+  folder: string
+): Promise<UploadResponse> => {
+  try {
+    const response = await imageKit.upload({
+      file,
+      fileName,
+      folder,
+    });
+
+    return {
+      url: response.url,
+      fileId: response.fileId
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('Error uploading file:', error.message);
+    }
+    throw new Error('Failed to upload file');
+  }
 };
 
 export const deleteImageKitFile = async (fileId: string): Promise<boolean> => {
   try {
+    if (!fileId) {
+      console.error('No fileId provided for deletion');
+      return false;
+    }
+
+    const privateKey = process.env.PRIVATE_KEY;
+    if (!privateKey) {
+      console.error('ImageKit private key not found');
+      return false;
+    }
+
+    const authString = Buffer.from(`${privateKey}:`).toString('base64');
+
     const response = await fetch(`https://api.imagekit.io/v1/files/${fileId}`, {
       method: 'DELETE',
       headers: {
-        'Authorization': getBasicAuthHeader(),
+        'Authorization': `Basic ${authString}`,
         'Content-Type': 'application/json'
       }
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('ImageKit delete error:', errorData);
-      return false;
+    if (response.status === 204) {
+      console.log(`Successfully deleted file with ID: ${fileId}`);
+      return true;
     }
 
-    console.log(`Successfully deleted file with ID: ${fileId}`);
-    return true;
+    console.error('ImageKit delete error:', await response.json());
+    return false;
+
   } catch (error) {
-    console.error('Error deleting file from ImageKit:', error);
+    if (error instanceof Error) {
+      console.error('Error deleting file from ImageKit:', error.message);
+    }
     return false;
   }
 };
 
-// Fungsi untuk menghapus file berdasarkan URL
-export const deleteImageKitFileByUrl = async (url: string): Promise<boolean> => {
-  if (!url) return false;
-
-  try {
-    // Dapatkan nama file dari URL sebagai fileId
-    const fileId = getFileIdFromUrl(url);
-    if (!fileId) {
-      console.error('Could not extract fileId from URL:', url);
-      return false;
-    }
-
-    return await deleteImageKitFile(fileId);
-  } catch (error) {
-    console.error('Error deleting file by URL:', error);
-    return false;
-  }
-};
-
+// Export imagekit instance for other operations if needed
 export default imageKit;

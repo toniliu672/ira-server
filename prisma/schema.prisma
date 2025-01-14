@@ -86,7 +86,9 @@ model VideoMateri {
   judul       String
   deskripsi   String?
   videoUrl    String   // URL video dari ImageKit (max 100MB)
+  videoFileId   String?  // Add this field
   thumbnailUrl String? // URL thumbnail untuk video (max 5MB)
+  thumbnailFileId String? // Add this field
   durasi      Int     // Durasi dalam menit
   urutan      Int     // Urutan dalam materi
   status      Boolean @default(true)

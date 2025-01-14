@@ -3,11 +3,11 @@
 import { cache } from "react";
 import { videoMateriRepository } from "@/repositories/videoMateriRepository";
 import { ApiError } from "@/lib/errors";
-import { validateFile } from "@/utils/upload";
+import { uploadFile, deleteImageKitFile } from "@/utils/imagekit";
 import type { UploadResult } from "@/types/upload";
-import ImageKit from "imagekit";
 import { Prisma } from "@prisma/client";
-import { deleteImageKitFileByUrl } from "@/utils/imagekit";
+import ImageKit from "imagekit";
+import { validateFile } from "@/utils/upload";
 
 const imageKit = new ImageKit({
   publicKey: process.env.NEXT_PUBLIC_PUBLIC_KEY!,
@@ -132,26 +132,31 @@ export const createVideoMateri = async (
       throw new ApiError("VALIDATION_ERROR", "MateriId is required", 400);
     }
 
-    const videoResult = await uploadVideo(videoFile);
-    if (!videoResult.success || !videoResult.url) {
-      throw new ApiError(
-        "UPLOAD_FAILED",
-        videoResult.error?.message || "Gagal mengupload video",
-        500
-      );
+    // Upload video and get both URL and fileId
+    const videoBuffer = await videoFile.arrayBuffer();
+    const videoResult = await uploadFile(
+      Buffer.from(videoBuffer),
+      videoFile.name,
+      "/materi/videos"
+    );
+    
+    if (!videoResult.url) {
+      throw new ApiError("UPLOAD_FAILED", "Gagal mengupload video", 500);
     }
 
     let thumbnailUrl: string | undefined;
+    let thumbnailFileId: string | undefined;
+
     if (thumbnailFile) {
-      const thumbnailResult = await uploadThumbnail(thumbnailFile);
-      if (!thumbnailResult.success) {
-        throw new ApiError(
-          "UPLOAD_FAILED",
-          thumbnailResult.error?.message || "Gagal mengupload thumbnail",
-          500
-        );
-      }
+      const thumbnailBuffer = await thumbnailFile.arrayBuffer();
+      const thumbnailResult = await uploadFile(
+        Buffer.from(thumbnailBuffer),
+        thumbnailFile.name,
+        "/materi/thumbnails"
+      );
+      
       thumbnailUrl = thumbnailResult.url;
+      thumbnailFileId = thumbnailResult.fileId;
     }
 
     const lastVideos = await videoMateriRepository.findByMateriId({
@@ -159,53 +164,22 @@ export const createVideoMateri = async (
       status: true,
     });
 
-    const urutan =
-      lastVideos.length > 0
-        ? Math.max(...lastVideos.map((v) => v.urutan)) + 1
-        : 1;
+    const urutan = lastVideos.length > 0
+      ? Math.max(...lastVideos.map((v) => v.urutan)) + 1
+      : 1;
 
     return await videoMateriRepository.create({
       ...input,
       videoUrl: videoResult.url,
+      videoFileId: videoResult.fileId,
       thumbnailUrl,
+      thumbnailFileId,
       urutan,
     });
   } catch (e) {
     if (e instanceof ApiError) throw e;
     console.error("Create VideoMateri Error:", e);
     throw new ApiError("CREATE_FAILED", "Gagal membuat video materi baru", 500);
-  }
-};
-
-export const deleteVideoMateri = async (id: string) => {
-  try {
-    // Get video details first
-    const videoMateri = await videoMateriRepository.findById(id);
-    if (!videoMateri) {
-      throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
-    }
-
-    // Delete media files from ImageKit
-    if (videoMateri.videoUrl) {
-      const videoDeleted = await deleteImageKitFileByUrl(videoMateri.videoUrl);
-      if (!videoDeleted) {
-        console.warn(`Failed to delete video file: ${videoMateri.videoUrl}`);
-      }
-    }
-
-    if (videoMateri.thumbnailUrl) {
-      const thumbnailDeleted = await deleteImageKitFileByUrl(videoMateri.thumbnailUrl);
-      if (!thumbnailDeleted) {
-        console.warn(`Failed to delete thumbnail file: ${videoMateri.thumbnailUrl}`);
-      }
-    }
-
-    // Delete database record
-    await videoMateriRepository.delete(id);
-  } catch (e) {
-    if (e instanceof ApiError) throw e;
-    console.error("Delete VideoMateri Error:", e);
-    throw new ApiError("DELETE_FAILED", "Gagal menghapus video materi", 500);
   }
 };
 
@@ -225,40 +199,46 @@ export const updateVideoMateri = async (
 
     // Handle video upload and deletion
     if (videoFile) {
-      const videoResult = await uploadVideo(videoFile);
-      if (!videoResult.success || !videoResult.url) {
-        throw new ApiError(
-          "UPLOAD_FAILED",
-          videoResult.error?.message || "Gagal mengupload video",
-          500
-        );
+      const videoBuffer = await videoFile.arrayBuffer();
+      const videoResult = await uploadFile(
+        Buffer.from(videoBuffer),
+        videoFile.name,
+        "/materi/videos"
+      );
+      
+      if (!videoResult.url) {
+        throw new ApiError("UPLOAD_FAILED", "Gagal mengupload video", 500);
       }
       
       // Delete old video if exists
-      if (currentVideo.videoUrl) {
-        await deleteImageKitFileByUrl(currentVideo.videoUrl);
+      if (currentVideo.videoFileId) {
+        await deleteImageKitFile(currentVideo.videoFileId);
       }
       
       updateData.videoUrl = videoResult.url;
+      updateData.videoFileId = videoResult.fileId;
     }
 
     // Handle thumbnail upload and deletion
     if (thumbnailFile) {
-      const thumbnailResult = await uploadThumbnail(thumbnailFile);
-      if (!thumbnailResult.success || !thumbnailResult.url) {
-        throw new ApiError(
-          "UPLOAD_FAILED",
-          thumbnailResult.error?.message || "Gagal mengupload thumbnail",
-          500
-        );
+      const thumbnailBuffer = await thumbnailFile.arrayBuffer();
+      const thumbnailResult = await uploadFile(
+        Buffer.from(thumbnailBuffer),
+        thumbnailFile.name,
+        "/materi/thumbnails"
+      );
+      
+      if (!thumbnailResult.url) {
+        throw new ApiError("UPLOAD_FAILED", "Gagal mengupload thumbnail", 500);
       }
 
       // Delete old thumbnail if exists
-      if (currentVideo.thumbnailUrl) {
-        await deleteImageKitFileByUrl(currentVideo.thumbnailUrl);
+      if (currentVideo.thumbnailFileId) {
+        await deleteImageKitFile(currentVideo.thumbnailFileId);
       }
 
       updateData.thumbnailUrl = thumbnailResult.url;
+      updateData.thumbnailFileId = thumbnailResult.fileId;
     }
 
     return await videoMateriRepository.update(id, updateData);
@@ -266,6 +246,56 @@ export const updateVideoMateri = async (
     if (e instanceof ApiError) throw e;
     console.error("Update VideoMateri Error:", e);
     throw new ApiError("UPDATE_FAILED", "Gagal mengupdate video materi", 500);
+  }
+};
+
+export const deleteVideoMateri = async (id: string) => {
+  try {
+    // Get video details first
+    const videoMateri = await videoMateriRepository.findById(id);
+    if (!videoMateri) {
+      throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
+    }
+
+    // Delete media files from ImageKit with better error handling
+    if (videoMateri.videoUrl) {
+      try {
+        const videoDeleted = await deleteImageKitFile(
+          videoMateri.videoUrl
+        );
+        if (!videoDeleted) {
+          console.warn(
+            `Failed to delete video file but continuing with record deletion. URL: ${videoMateri.videoUrl}`
+          );
+        }
+      } catch (error) {
+        console.error("Error deleting video file:", error);
+        // Continue with record deletion even if file deletion fails
+      }
+    }
+
+    if (videoMateri.thumbnailUrl) {
+      try {
+        const thumbnailDeleted = await deleteImageKitFile(
+          videoMateri.thumbnailUrl
+        );
+        if (!thumbnailDeleted) {
+          console.warn(
+            `Failed to delete thumbnail file but continuing with record deletion. URL: ${videoMateri.thumbnailUrl}`
+          );
+        }
+      } catch (error) {
+        console.error("Error deleting thumbnail file:", error);
+        // Continue with record deletion even if file deletion fails
+      }
+    }
+
+    // Delete database record
+    await videoMateriRepository.delete(id);
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    console.error("Delete VideoMateri Error:", e);
+    throw new ApiError("DELETE_FAILED", "Gagal menghapus video materi", 500);
   }
 };
 
