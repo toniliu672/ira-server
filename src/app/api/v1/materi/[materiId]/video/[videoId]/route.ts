@@ -3,13 +3,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyJWT } from "@/lib/auth";
-import { 
+import {
   updateVideoMateri,
-  deleteVideoMateri, 
-  getVideoMateriById
+  deleteVideoMateri,
+  getVideoMateriById,
 } from "@/services/videoMateriService";
 import { ApiError } from "@/lib/errors";
 import { videoMateriInputSchema } from "@/types/materi";
+
+// Function to extract YouTube video ID
+function extractYoutubeId(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    // Handle youtube.com/watch?v= format
+    if (urlObj.hostname.includes("youtube.com")) {
+      if (urlObj.pathname === "/watch") {
+        return urlObj.searchParams.get("v");
+      }
+      // Handle youtube.com/embed/ format
+      if (urlObj.pathname.startsWith("/embed/")) {
+        return urlObj.pathname.split("/")[2];
+      }
+    }
+    // Handle youtu.be format
+    if (urlObj.hostname === "youtu.be") {
+      return urlObj.pathname.substring(1);
+    }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  } catch (e) {
+    // If URL parsing fails, try regex as fallback
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&?/]+)/,
+      /^[a-zA-Z0-9_-]{11}$/, // Direct video ID
+    ];
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
+    }
+  }
+  return null;
+}
 
 export async function GET(
   request: NextRequest,
@@ -35,7 +69,7 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
-      data: videoMateri
+      data: videoMateri,
     });
   } catch (e) {
     if (e instanceof ApiError) {
@@ -74,33 +108,47 @@ export async function PATCH(
     }
 
     const { materiId, videoId } = await params;
-    const formData = await request.formData();
-    const videoFile = formData.get("video") as File | null;
-    const thumbnailFile = formData.get("thumbnail") as File | null;
-    const dataStr = formData.get("data") as string;
+    const body = await request.json();
 
-    const data = JSON.parse(dataStr);
-    const validatedData = videoMateriInputSchema.partial().parse({
-      ...data,
+    // Extract YouTube ID if URL is being updated
+    let youtubeId = undefined;
+    if (body.videoUrl) {
+      youtubeId = extractYoutubeId(body.videoUrl);
+      if (!youtubeId) {
+        throw new ApiError(
+          "VALIDATION_ERROR",
+          "URL video YouTube tidak valid",
+          400
+        );
+      }
+    }
+
+    // Validate the input data
+    const validatedData = await videoMateriInputSchema.partial().parseAsync({
+      ...body,
       materiId,
+      youtubeId,
     });
 
+    // Update data preparation
+    const updateData = {
+      ...(validatedData.judul && { judul: validatedData.judul }),
+      ...(validatedData.deskripsi && { deskripsi: validatedData.deskripsi }),
+      ...(validatedData.durasi && { durasi: validatedData.durasi }),
+      ...(youtubeId && {
+        videoUrl: validatedData.videoUrl,
+        youtubeId: youtubeId,
+        thumbnailUrl: `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`,
+      }),
+    };
+
     // Update video materi
-    const videoMateri = await updateVideoMateri(
-      videoId,
-      {
-        judul: validatedData.judul,
-        deskripsi: validatedData.deskripsi,
-        durasi: validatedData.durasi,
-      },
-      videoFile || undefined,
-      thumbnailFile || undefined
-    );
+    const videoMateri = await updateVideoMateri(videoId, updateData);
 
     return NextResponse.json({
       success: true,
       data: videoMateri,
-      message: "Video materi berhasil diupdate"
+      message: "Video materi berhasil diupdate",
     });
   } catch (e) {
     if (e instanceof ApiError) {
@@ -145,12 +193,12 @@ export async function DELETE(
       throw new ApiError("NOT_FOUND", "Video materi tidak ditemukan", 404);
     }
 
-    // Delete video materi and its media files
+    // Delete video materi
     await deleteVideoMateri(videoId);
 
     return NextResponse.json({
       success: true,
-      message: "Video materi berhasil dihapus"
+      message: "Video materi berhasil dihapus",
     });
   } catch (e) {
     if (e instanceof ApiError) {
@@ -161,7 +209,10 @@ export async function DELETE(
     }
     console.error("Delete video materi error:", e);
     return NextResponse.json(
-      { success: false, error: e instanceof Error ? e.message : "Internal server error" },
+      {
+        success: false,
+        error: e instanceof Error ? e.message : "Internal server error",
+      },
       { status: 500 }
     );
   }
