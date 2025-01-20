@@ -22,11 +22,33 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { getCSRFToken } from "@/lib/csrf";
-import { validateFile } from "@/utils/upload";
 import type { VideoMateri } from "@/types/materi";
 
 interface VideoMateriProps {
   params: Promise<{ id: string; videoId: string }>;
+}
+
+// Function to extract YouTube video ID
+function extractYoutubeId(url: string): string | null {
+  const patterns = [
+    /^https?:\/\/(?:www\.)?youtube\.com\/watch\?v=([^&]+)/,
+    /^https?:\/\/(?:www\.)?youtube\.com\/embed\/([^/?]+)/,
+    /^https?:\/\/youtu\.be\/([^/?]+)/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+
+  return null;
+}
+
+// Function to validate YouTube URL
+function validateYoutubeUrl(url: string): string | null {
+  if (!url) return "URL video YouTube wajib diisi";
+  if (!extractYoutubeId(url)) return "Format URL YouTube tidak valid";
+  return null;
 }
 
 export default function VideoMateriPage({
@@ -40,15 +62,15 @@ export default function VideoMateriPage({
     judul: "",
     deskripsi: "",
     videoUrl: "",
+    youtubeId: "",
     thumbnailUrl: "",
     durasi: 0,
     urutan: 1,
     status: true,
     materiId: params.id,
   });
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isNew) {
@@ -78,42 +100,33 @@ export default function VideoMateriPage({
     }
   }, [params.id, params.videoId, isNew]);
 
-  const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleVideoUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    const error = validateYoutubeUrl(url);
+    setUrlError(error);
 
-    const error = await validateFile(file, "video");
-    if (error) {
-      alert(error.message);
-      e.target.value = ""; // Reset input
-      return;
+    if (!error) {
+      const youtubeId = extractYoutubeId(url);
+      setFormData({
+        ...formData,
+        videoUrl: url,
+        youtubeId: youtubeId || "",
+      });
+    } else {
+      setFormData({
+        ...formData,
+        videoUrl: url,
+        youtubeId: "",
+      });
     }
-
-    setVideoFile(file);
-  };
-
-  const handleThumbnailChange = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const error = await validateFile(file, "image");
-    if (error) {
-      alert(error.message);
-      e.target.value = ""; // Reset input
-      return;
-    }
-
-    setThumbnailFile(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (uploading) return;
+    if (saving) return;
 
     try {
-      setUploading(true);
+      setSaving(true);
       const csrfToken = getCSRFToken();
 
       // Validasi basic
@@ -121,32 +134,19 @@ export default function VideoMateriPage({
         throw new Error("Judul video wajib diisi");
       }
 
-      if (isNew && !videoFile) {
-        throw new Error("File video wajib diupload");
+      if (isNew && !formData.videoUrl) {
+        throw new Error("URL video YouTube wajib diisi");
       }
 
       if (!formData.durasi || formData.durasi < 1) {
         throw new Error("Durasi video harus lebih dari 0 menit");
       }
 
-      const formDataToSend = new FormData();
-
-      if (videoFile) {
-        formDataToSend.append("video", videoFile);
+      // Validate YouTube URL
+      const urlError = validateYoutubeUrl(formData.videoUrl || "");
+      if (urlError) {
+        throw new Error(urlError);
       }
-      if (thumbnailFile) {
-        formDataToSend.append("thumbnail", thumbnailFile);
-      }
-
-      // Prepare input data
-      const dataToSend = {
-        judul: formData.judul.trim(),
-        deskripsi: formData.deskripsi?.trim() || null,
-        durasi: Math.max(1, formData.durasi || 0),
-        materiId: params.id,
-      };
-
-      formDataToSend.append("data", JSON.stringify(dataToSend));
 
       const url = isNew
         ? `/api/v1/materi/${params.id}/video`
@@ -156,9 +156,16 @@ export default function VideoMateriPage({
       const response = await fetch(url, {
         method,
         headers: {
+          "Content-Type": "application/json",
           "X-CSRF-Token": csrfToken,
         },
-        body: formDataToSend,
+        body: JSON.stringify({
+          judul: formData.judul.trim(),
+          deskripsi: formData.deskripsi?.trim() || null,
+          videoUrl: formData.videoUrl,
+          durasi: Math.max(1, formData.durasi || 0),
+          materiId: params.id,
+        }),
       });
 
       if (!response.ok) {
@@ -174,7 +181,7 @@ export default function VideoMateriPage({
         error instanceof Error ? error.message : "Gagal menyimpan video materi"
       );
     } finally {
-      setUploading(false);
+      setSaving(false);
     }
   };
 
@@ -269,31 +276,27 @@ export default function VideoMateriPage({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="video">Video</Label>
+              <Label htmlFor="videoUrl">URL Video YouTube</Label>
               <Input
-                id="video"
-                type="file"
-                accept="video/*"
-                onChange={handleVideoChange}
+                id="videoUrl"
+                type="url"
+                value={formData.videoUrl}
+                onChange={handleVideoUrlChange}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className={urlError ? "border-red-500" : ""}
               />
-              {formData.videoUrl && (
-                <div className="text-sm text-gray-500">
-                  Video saat ini: {formData.videoUrl}
-                </div>
-              )}
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="thumbnail">Thumbnail</Label>
-              <Input
-                id="thumbnail"
-                type="file"
-                accept="image/*"
-                onChange={handleThumbnailChange}
-              />
-              {formData.thumbnailUrl && (
-                <div className="text-sm text-gray-500">
-                  Thumbnail saat ini: {formData.thumbnailUrl}
+              {urlError && <p className="text-sm text-red-500">{urlError}</p>}
+              {formData.youtubeId && (
+                <div className="mt-2">
+                  <iframe
+                    width="100%"
+                    height="315"
+                    src={`https://www.youtube.com/embed/${formData.youtubeId}`}
+                    title="YouTube video preview"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
                 </div>
               )}
             </div>
@@ -342,14 +345,14 @@ export default function VideoMateriPage({
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit" disabled={uploading}>
-                {uploading ? "Menyimpan..." : "Simpan"}
+              <Button type="submit" disabled={saving}>
+                {saving ? "Menyimpan..." : "Simpan"}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => router.push(`/admin/materi/${params.id}`)}
-                disabled={uploading}
+                disabled={saving}
               >
                 Batal
               </Button>

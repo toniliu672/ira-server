@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getVideoMateriByMateriId } from "@/services/videoMateriService";
+import { getMateriById } from "@/services/materiService";
 import { ApiError } from "@/lib/errors";
 import { verifyJWT } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
@@ -44,19 +45,38 @@ export async function GET(
     }
 
     const { materiId } = await params;
+
+    // Check if materi exists and is active first
+    const materi = await getMateriById(materiId);
+    if (!materi || !materi.status) {
+      throw new ApiError("NOT_FOUND", "Materi tidak ditemukan", 404);
+    }
+
     const searchParams = req.nextUrl.searchParams;
     const search = searchParams.get("search") || "";
 
+    // Get videos, only return active ones
     const videoMateri = await getVideoMateriByMateriId({
       materiId,
       search,
-      status: true // Only get active video materi
+      status: true,
     });
+
+    // Transform response to only include necessary data for mobile
+    const transformedVideos = videoMateri.map((video) => ({
+      id: video.id,
+      judul: video.judul,
+      deskripsi: video.deskripsi,
+      youtubeId: video.youtubeId,
+      thumbnailUrl: video.thumbnailUrl,
+      durasi: video.durasi,
+      urutan: video.urutan,
+    }));
 
     return NextResponse.json({
       success: true,
       message: "Successfully retrieved video materi list",
-      data: videoMateri
+      data: transformedVideos,
     });
   } catch (e) {
     console.error("Mobile Get Video Materi Error:", e);
