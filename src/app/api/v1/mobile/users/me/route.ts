@@ -5,19 +5,11 @@ import { updateUser } from "@/services/adminUserService";
 import { userUpdateSchema } from "@/types/user";
 import { ApiError } from "@/lib/errors";
 import { verifyJWT } from "@/lib/auth";
-import { rateLimit } from "@/lib/rate-limit";
 import prisma from "@/lib/prisma";
-
-const limiter = rateLimit({
-  interval: 60 * 1000,
-  uniqueTokenPerInterval: 500,
-});
 
 // GET /api/v1/mobile/users/me - Get own profile
 export async function GET(req: NextRequest) {
   try {
-    await limiter.check(req, 30);
-
     const token = req.headers.get("authorization")?.split(" ")[1];
     if (!token) {
       return NextResponse.json(
@@ -89,8 +81,6 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    await limiter.check(req, 30);
-
     const token = req.headers.get("authorization")?.split(" ")[1];
     if (!token) {
       return NextResponse.json(
@@ -119,7 +109,6 @@ export async function PATCH(req: NextRequest) {
 
     // Hanya batasi fields yang tidak boleh diubah user
     delete body.role;
-    delete body.deviceId;
     delete body.activeStatus;
 
     // Cek duplikat username/email kalau mau diganti

@@ -12,7 +12,6 @@ export const userSchema = z.object({
   phone: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   activeStatus: z.boolean().default(true),
-  deviceId: z.string().optional().nullable(),
   lastLogin: z.date().optional().nullable(),
   createdAt: z.date().optional(),
   updatedAt: z.date().optional()
@@ -53,11 +52,4 @@ export interface UserListResponse {
     limit: number;
   };
   error?: string;
-}
-
-export interface UserDevice {
-  id: string;
-  deviceId: string;
-  lastLogin: Date;
-  deviceInfo?: string;
 }
