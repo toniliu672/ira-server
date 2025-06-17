@@ -61,15 +61,14 @@ export function QuizResultsTable({ quizId, quizType }: QuizResultsTableProps) {
   return (
     <div className="space-y-4">
       <QuizResultsFilter isEssayQuiz={quizType === "ESSAY"} />
-      
+
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Nama Siswa</TableHead>
               <TableHead>Username</TableHead>
-              <TableHead className="text-center">Jawaban</TableHead>
-              <TableHead className="text-center">Nilai Rata-rata</TableHead>
+              <TableHead className="text-center">Nilai Terakhir</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-center">Tanggal Submit</TableHead>
             </TableRow>
@@ -86,13 +85,10 @@ export function QuizResultsTable({ quizId, quizType }: QuizResultsTableProps) {
                 </TableCell>
                 <TableCell>{result.student.username}</TableCell>
                 <TableCell className="text-center">
-                  {result.scores.answered}
+                  {result.scores.latestScore.toFixed(1)}
                 </TableCell>
                 <TableCell className="text-center">
-                  {result.scores.avgScore.toFixed(1)}
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge 
+                  <Badge
                     variant={result.scores.isComplete ? "default" : "secondary"}
                   >
                     {result.scores.isComplete ? "Selesai" : "Belum Selesai"}

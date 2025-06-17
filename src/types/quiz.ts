@@ -96,7 +96,6 @@ export interface QuizStats {
   active: number;
 }
 
-
 // Quiz result
 export interface QuizResult {
   student: {
@@ -112,6 +111,7 @@ export interface QuizResult {
   scores: {
     answered: number;
     avgScore: number;
+    latestScore: number;
     isComplete: boolean;
   };
   submittedAt: string;
