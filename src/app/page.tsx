@@ -152,7 +152,7 @@ export default function AdminLoginPage() {
           {/* Mobile App Download for small screens */}
           <div className="lg:hidden mb-8">
             <Link
-              href="https://drive.google.com/file/d/1gRoBAN6cRfId3DxN3ZQTZurg3gyleJJn/view?usp=sharing"
+              href="https://drive.google.com/file/d/1OHy90NfNdXgNNFPm6Pq7l3_YTlXD4m-j/view?usp=sharing"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block w-full"
